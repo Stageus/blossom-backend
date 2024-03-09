@@ -3,7 +3,9 @@ const jwt = require('jsonwebtoken');
 //const queryConnect = require('../modules/queryConnect');
 const checkPattern = require("../middleware/checkPattern");
 const redis = require("redis").createClient();
-const { idReq, pwReq, emailReq, nameReq, genderReq, dateReq, telReq }= require("../config/patterns");
+const upload = require("../config/multer");
+const s3 = require("../config/s3")
+const { idReq, pwReq, nameReq, dateReq, telReq }= require("../config/patterns");
 
 //커플 미들웨어 생성 ??
 //커플 테이블에서 조회한 후, 없으면 커플 초기연결을 해주세요 -> 설정페이지로 이동하게끔?
@@ -16,17 +18,12 @@ router.get('/couple/:idx', async (req, res, next) => {
     const result = {
         success: false,
         message: '커플 정보 불러오기 실패',
-        data: {
-            token: "",
-            user: null,
-            dailyLogin: null,
-            totalLogin: null
-        }
+        data: null
     };
     const query = {
         text: `
             SELECT 
-                idx 
+                * 
             FROM 
                 couple 
             WHERE 
@@ -54,20 +51,16 @@ router.get('/couple/:idx', async (req, res, next) => {
 
 });
 
-//커플 상대찾기 api
+//커플 상대찾기 api => 상대찾기랑 닉네임 사귄날짜 입력을 따로 분리해야하는지? 일단 분리함, 그리고 get인지 post인지 헷갈림
 router.post('/couple', checkPattern(nicknameReq, 'nickname'), checkPattern(dateReq, 'date'), async (req, res, next) => {
     const userIdx = req.user.idx
     const { couplePartnerId } = req.body;    
     const result = {
         success: false,
         message: '커플 정보 등록 실패',
-        data: {
-            token: "",
-            user: null,
-            dailyLogin: null,
-            totalLogin: null
-        }
+        data: null,
     };
+
     const query = {
         text: `
             SELECT 
@@ -115,7 +108,7 @@ router.post('/couple', checkPattern(nicknameReq, 'nickname'), checkPattern(dateR
 
     result.success = true;
     result.message = `커플 정보 입력 성공.`;
-    result.data = { rows };
+    result.data = { couplePartnerIdx };
 
     res.send(result);
 
@@ -124,30 +117,26 @@ router.post('/couple', checkPattern(nicknameReq, 'nickname'), checkPattern(dateR
 // 커플 정보 등록 api -> 커플 매칭 후!
 router.post('/couple', checkPattern(nicknameReq, 'nickname'), checkPattern(dateReq, 'date'), async (req, res, next) => {
     const userIdx = req.user.idx
-    const { nickname, date } = req.body;    
+    const { couplePartnerIdx, nickname, date } = req.body;    
     const result = {
         success: false,
         message: '커플 정보 등록 실패',
-        data: {
-            token: "",
-            user: null,
-            dailyLogin: null,
-            totalLogin: null
-        }
+        data: null
     };
-    const insertQuery = {
+
+    const updateAccountQuery = {
         text: `
-            INSERT INTO 
-                couple (
-                    couple1_idx,
-                    couple2_idx,
-            ) VALUES (
-                $1, $2
-            );
+        UPDATE 
+            account
+        SET 
+            nickname = $1,
+        WHERE 
+            idx = $2;
             `,
-        values: [userIdx, nickname, pw, tel, gender],
+        values: [nickname, couplePartnerIdx],
     };
-    const { rowCount } = await queryConnect(insertQuery);
+
+    const { rowCount } = await queryConnect(updateAccountQuery);
 
     if (rowCount == 0) {
         return next({
@@ -156,9 +145,33 @@ router.post('/couple', checkPattern(nicknameReq, 'nickname'), checkPattern(dateR
         });  
     }
 
+    const updateCoupleQuery = {
+        text: `
+        UPDATE 
+            couple
+        SET 
+            start_date = $1,
+        WHERE 
+            couple1_idx = $2
+        OR
+            couple2_idx = $2;
+            `,
+        values: [date, couplePartnerIdx], //userIdx 넣어도 됨
+    };
+
+    const queryResult = await queryConnect(updateCoupleQuery);
+    const updateResult = queryResult.rowCount;
+
+    if(updateResult==0){
+        return next({
+            message : "커플 정보 입력 실패",
+            status : 401
+        });  
+    }
+
     result.success = true;
     result.message = `커플 정보 입력 성공.`;
-    result.data = { rows };
+    //result.data = {  };
 
     res.send(result);
 
@@ -168,21 +181,16 @@ router.post('/couple', checkPattern(nicknameReq, 'nickname'), checkPattern(dateR
 router.put('/couple', checkPattern(nicknameReq, 'nickname'), async (req, res, next) => {
     const coupleIdx = req.user.coupleIdx; // 토큰에 coupleIdx 추가하기
     const userIdx = req.user.idx
-    const { id, pw } = req.body;    
+    const { nickname } = req.body;    
     const result = {
         success: false,
-        message: '커플 정보 불러오기 실패',
-        data: {
-            token: "",
-            user: null,
-            dailyLogin: null,
-            totalLogin: null
-        }
+        message: '상대 닉네임 수정 실패',
+        data: null
     };
     const query = {
         text: `
             SELECT 
-                idx 
+                couple1_idx, couple2_idx 
             FROM 
                 couple 
             WHERE 
@@ -202,39 +210,69 @@ router.put('/couple', checkPattern(nicknameReq, 'nickname'), async (req, res, ne
         });  
     }
 
+    const couple1_idx = rows[0].couple1_idx;
+    const couple2_idx = rows[0].couple2_idx;
+
+    let couplePartnerIdx;
+    if(couple1_idx!=userIdx){
+        couplePartnerIdx=couple1_idx;
+    } 
+    else{
+        couplePartnerIdx=couple2_idx;
+    }
+
+    const updateCoupleQuery = {
+        text: `
+        UPDATE 
+            account
+        SET 
+            nickname = $1,
+        WHERE 
+            idx = $2
+            `,
+        values: [nickname, couplePartnerIdx], //userIdx 넣어도 됨
+    };
+
+    const queryResult = await queryConnect(updateCoupleQuery);
+    const updateResult = queryResult.rowCount;
+
+    if(updateResult==0){
+        return next({
+            message : "상대 닉네임 수정 실패",
+            status : 401
+        });  
+    }
+
     result.success = true;
-    result.message = `커플 정보 불러오기 성공.`;
-    result.data = { rows };
+    result.message = `상대 닉네임 수정 실패.`;
+    //result.data = {  };
 
     res.send(result);
 
 });
 
 // 커플 연애날짜 수정 api
-router.put('/couple', ccheckPattern(dateReq, 'date'), async (req, res, next) => {
+router.put('/couple', checkPattern(dateReq, 'date'), async (req, res, next) => {
     const coupleIdx = req.user.coupleIdx; // 토큰에 coupleIdx 추가하기
     const userIdx = req.user.idx
     const { date } = req.body;    
     const result = {
         success: false,
-        message: '커플 정보 불러오기 실패',
-        data: {
-            token: "",
-            user: null,
-            dailyLogin: null,
-            totalLogin: null
-        }
+        message: '연애 날짜 수정 실패',
+        data: null
     };
     const query = {
         text: `
-            UPDATE 
-                account
-            SET 
-                start_date = $1,
+            SELECT 
+                couple1_idx, couple2_idx 
+            FROM 
+                couple 
             WHERE 
-                idx = $6;
+                idx = $1 
+                AND 
+                account_idx = $2;
                 `,
-        values: [date, coupleIdx],
+        values: [coupleIdx, userIdx],
     };
 
     const { rows } = await queryConnect(query);
@@ -246,53 +284,109 @@ router.put('/couple', ccheckPattern(dateReq, 'date'), async (req, res, next) => 
         });  
     }
 
+    const couple1_idx = rows[0].couple1_idx;
+    const couple2_idx = rows[0].couple2_idx;
+
+    let couplePartnerIdx;
+    if(couple1_idx!=userIdx){
+        couplePartnerIdx=couple1_idx;
+    } 
+    else{
+        couplePartnerIdx=couple2_idx;
+    }
+
+    const updateCoupleQuery = {
+        text: `
+        UPDATE 
+            account
+        SET 
+            start_date = $1,
+        WHERE 
+            idx = $2
+            `,
+        values: [date, coupleIdx], //userIdx 넣어도 됨
+    };
+
+    const queryResult = await queryConnect(updateCoupleQuery);
+    const updateResult = queryResult.rowCount;
+
+    if(updateResult==0){
+        return next({
+            message : "연애 날짜 수정 실패",
+            status : 401
+        });  
+    }
+
     result.success = true;
-    result.message = `커플 정보 불러오기 성공.`;
-    result.data = { rows };
+    result.message = `연애 날짜 수정 성공.`;
+    //result.data = {  };
 
     res.send(result);
 
 });
 
 // 커플 이미지 수정 api
-router.put('/couple', checkPattern(imageReq, 'image'), async (req, res, next) => {
+router.put('/couple', upload.single("file"), checkPattern(imageReq, 'image'), async (req, res, next) => {
     const coupleIdx = req.user.coupleIdx; // 토큰에 coupleIdx 추가하기
     const userIdx = req.user.idx
-    const { newImageUrl } = req.body;    
+    const { deleteImageUrl } = req.body;    
     const result = {
         success: false,
-        message: '커플 정보 불러오기 실패',
-        data: {
-            token: "",
-            user: null,
-            dailyLogin: null,
-            totalLogin: null
+        message: '커플 이미지 수정 실패',
+        data: null
+    };
+    if (deleteImageUrl) {
+        // deleteImageUrl에서 추가 문자를 제거.
+        const cleanedDeleteImageUrl = deleteImageUrl.trim();
+        
+        // 삭제할 이미지의 S3 URL 가져오기
+        const deleteImageQuery = {
+            text: 'DELETE image_url FROM couple WHERE idx = $1',
+            values: [coupleIdx],
+        };
+    
+        const deleteResult = await queryConnect(deleteImageQuery);
+
+        if(deleteResult==0){
+            return next({
+                message : "커플 이미지 삭제 실패",
+                status : 401
+            })
         }
-    };
-    const query = {
-        text: `
-            UPDATE 
-                couple
-            SET 
-                image_url = $1,
-            WHERE 
-                idx = $6;
-                `,
-        values: [newImageUrl, coupleIdx],
-    };
+    
+        // S3에서 이미지 삭제
+        const imageKey = cleanedDeleteImageUrl;
+        const decodedKey = decodeURIComponent(imageKey.split('/').pop());
+        await s3.deleteObject({ Bucket: 'sohyunxxistageus', Key: `uploads/${decodedKey}` }).promise();
+    
+        } else {
+            console.log("deleteImageUrl에 대한 이미지를 찾을 수 없습니다:", cleanedDeleteImageUrl);
+            result.message = "deleteImageUrl에 대한 이미지를 찾을 수 없습니다:";
+            //return res.send(result);
+        }
+    
+    if (file) {
+        
+        const imageUrl = file.location;
 
-    const { rows } = await queryConnect(query);
+        // 이미지 테이블에 이미지 저장
+        const imageInsertQuery = {
+            text: 'INSERT INTO couple (image_url) VALUES ($1)',
+            values: [imageUrl]
+        };
 
-    if (rows.length == 0) {
-        return next({
-            message : "일치하는 정보 없음",
-            status : 401
-        });  
+        const {rowCount} = await queryConnect(imageInsertQuery);
+        if(rowCount==0){
+            return next({
+                message : "커플 이미지 수정 실패",
+                status : 401
+            });  
+        }
     }
 
     result.success = true;
-    result.message = `커플 정보 불러오기 성공.`;
-    result.data = { rows };
+    result.message = `커플 이미지 수정 성공.`;
+    //result.data = {  };
 
     res.send(result);
 
@@ -305,34 +399,38 @@ router.delete('/couple', checkPattern(imageReq, 'image'), async (req, res, next)
     const { deleteImageUrl } = req.body;    
     const result = {
         success: false,
-        message: '커플 정보 불러오기 실패',
-        data: {
-            token: "",
-            user: null,
-            dailyLogin: null,
-            totalLogin: null
+        message: '커플 이미지 삭제 실패',
+        data: null
+    };
+    if (deleteImageUrl) {
+        // deleteImageUrl에서 추가 문자를 제거.
+        const cleanedDeleteImageUrl = deleteImageUrl.trim();
+        
+        // 삭제할 이미지의 S3 URL 가져오기
+        const deleteImageQuery = {
+            text: 'DELETE image_url FROM couple WHERE idx = $1',
+            values: [coupleIdx],
+        };
+    
+        const deleteResult = await queryConnect(deleteImageQuery);
+
+        if(deleteResult==0){
+            return next({
+                message : "커플 이미지 삭제 실패",
+                status : 401
+            })
         }
-    };
-    const query = {
-        text: `
-            DELETE 
-                image_url = $1
-            FROM 
-                couple 
-            WHERE 
-                couple_idx = $2
-                `,
-        values: [deleteImageUrl, coupleIdx]
-    };
-
-    const { rows } = await queryConnect(query);
-
-    if (rows.length == 0) {
-        return next({
-            message : "이미지 삭제 실패",
-            status : 401
-        });  
-    }
+    
+        // S3에서 이미지 삭제
+        const imageKey = cleanedDeleteImageUrl;
+        const decodedKey = decodeURIComponent(imageKey.split('/').pop());
+        await s3.deleteObject({ Bucket: 'sohyunxxistageus', Key: `uploads/${decodedKey}` }).promise();
+    
+        } else {
+            console.log("deleteImageUrl에 대한 이미지를 찾을 수 없습니다:", cleanedDeleteImageUrl);
+            result.message = "deleteImageUrl에 대한 이미지를 찾을 수 없습니다:";
+            //return res.send(result);
+        }
 
     result.success = true;
     result.message = `커플 정보 불러오기 성공.`;
