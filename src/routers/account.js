@@ -54,6 +54,7 @@ router.post('/login', checkPattern(idReq, 'id'), checkPattern(pwReq, 'pw'), asyn
             {
                 id: rows[0].id,
                 idx: rows[0].idx,
+                //couple_idx : rows[0].couple_idx, -> couple 테이블에서 조회??
                 isadmin: rows[0].isadmin,
                 uuid: uniqueId
             },
@@ -241,16 +242,13 @@ router.post("/", checkPattern(nameReq,'name'), checkPattern( emailReq,'email'), 
                                 name,
                                 id,
                                 pw,
-                                email,
-                                birth,
                                 tel,
-                                address,
                                 gender
                         ) VALUES (
-                            $1, $2, $3, $4, $5, $6, $7, $8
+                            $1, $2, $3, $4, $5
                         );
                     `,
-                values: [name, id, pw, email, birth, tel, address, gender],
+                values: [name, id, pw, tel, gender],
             };
             const { rowCount } = await queryConnect(insertQuery);
 
