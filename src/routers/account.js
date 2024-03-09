@@ -4,7 +4,7 @@ const jwt = require('jsonwebtoken');
 const checkPattern = require("../middleware/checkPattern");
 const redis = require("redis").createClient();
 const uuid = require("uuid")
-const { idReq, pwReq, emailReq, nameReq, genderReq, dateReq, addressReq, telReq }= require("../config/patterns");
+const { idReq, pwReq, nameReq, genderReq, dateReq, addressReq, telReq }= require("../config/patterns");
 
 // 로그인 API
 router.post('/login', checkPattern(idReq, 'id'), checkPattern(pwReq, 'pw'), async (req, res, next) => {
@@ -37,12 +37,30 @@ router.post('/login', checkPattern(idReq, 'id'), checkPattern(pwReq, 'pw'), asyn
 
         const prevUniqueId = await redis.get(`user:${rows[0].id}`);
         console.log("prevUniqueId: ",prevUniqueId)
+
         if (prevUniqueId) {
             console.log("중복로그인임.");
             await redis.DEL(`user:${rows[0].id}`);
             console.log("기존 uid 삭제.");
         }
 
+        const coupleQuery = {
+            text: 'SELECT idx FROM couple WHERE couple1_idx = $1 OR couple2_idx = $1',
+            values: [rows.idx],
+        };
+
+        const queryResult = await queryConnect(coupleQuery);
+        const coupleIdx = queryResult.rows[0].idx;
+
+        //커플 연결 유무 확인 -> 미들웨어로 뺄지말지?
+        if (coupleIdx == null || undefined || 0){
+            return next({
+                message : "커플 연결 되어있지 않음, 커플 연결 해야함",
+                status : 401
+            });
+        }
+
+        //중복로그인
         const uniqueId = uuid.v4();
         console.log("새로운 uid 생성");
 
@@ -54,7 +72,7 @@ router.post('/login', checkPattern(idReq, 'id'), checkPattern(pwReq, 'pw'), asyn
             {
                 id: rows[0].id,
                 idx: rows[0].idx,
-                //couple_idx : rows[0].couple_idx, -> couple 테이블에서 조회??
+                couple_idx : coupleIdx,
                 isadmin: rows[0].isadmin,
                 uuid: uniqueId
             },
@@ -78,6 +96,7 @@ router.post('/login', checkPattern(idReq, 'id'), checkPattern(pwReq, 'pw'), asyn
         result.message = '로그인 오류 발생';
         result.error = error;
         return res.status(500).send(result);
+
     } finally {
         await redis.disconnect();
     }
@@ -111,9 +130,9 @@ router.post('/logout', isLogin, async (req, res, next) => {
     }
 });
 
-// id 찾기 API
-router.get("/findid", checkPattern(nameReq,'name'), checkPattern( emailReq,'email'),async (req, res, next) => {
-    const { name, email } = req.body;
+// id 찾기 API -> 이름, 전화번호
+router.get("/findid", checkPattern(nameReq,'name'), checkPattern( telReq,'tel'),async (req, res, next) => {
+    const { name, tel } = req.body;
     const result = {
         success: false,
         message: "아이디 찾기 실패",
@@ -130,9 +149,9 @@ router.get("/findid", checkPattern(nameReq,'name'), checkPattern( emailReq,'emai
                 WHERE 
                     name = $1 
                     AND 
-                    email = $2;
+                    tel = $2;
                     `,
-            values: [name, email],
+            values: [name, tel],
         };
 
         const { rows } = await queryConnect(query);
@@ -158,8 +177,8 @@ router.get("/findid", checkPattern(nameReq,'name'), checkPattern( emailReq,'emai
 });
 
 // pw 찾기 API
-router.get("/findpw",  checkPattern(nameReq,'name'), checkPattern( emailReq,'email'), checkPattern(idReq,'id'), async (req,res,next) => {
-    const { name, email, id } = req.body
+router.get("/findpw",  checkPattern(nameReq,'name'), checkPattern( telReq,'tel'), checkPattern(idReq,'id'), checkPattern(pwReq,'pw'), async (req,res,next) => {
+    const { name, tel, id , pw} = req.body
     const result = {
         "success" : false, 
         "message" : "",
@@ -176,11 +195,11 @@ router.get("/findpw",  checkPattern(nameReq,'name'), checkPattern( emailReq,'ema
                 WHERE 
                     name = $1 
                     AND 
-                    email = $2 
+                    tel = $2 
                     AND 
                     id = $3
                 `,
-            values: [name, email, id],
+            values: [name, tel, id],
         };
 
         const { rows } = await queryConnect(query);
@@ -191,22 +210,42 @@ router.get("/findpw",  checkPattern(nameReq,'name'), checkPattern( emailReq,'ema
                 status : 401
             });                
         }
+
+        const userIdx = rows.idx;
        
-        const foundPw = rows[0].pw;
+        const changePwQuery = {
+            text: `
+                    UPDATE 
+                        account
+                    SET 
+                        pw = $1,
+                    WHERE 
+                        idx = $2;
+                    `,
+            values: [pw, userIdx],
+        };
+
+        const { rowCount } = await queryConnect(changePwQuery);
+
+        if (rowCount === 0) {
+            throw new Error("비밀번호 변경 실패");
+        }
+
         result.success = true;
-        result.message = `비밀번호 찾기 성공, 비밀번호는 ${foundPw} 입니다.`;
-        result.data = { pw: foundPw };
-  
+        //result.data = {  }; // 빼기?? -> 굳이 뭘 줘야하는게 없음
+        result.message = "비밀번호 변경 성공";
+
         res.send(result);
 
     } catch (error) {
         result.message = error.message;
+        return next(error);
     }
 });
 
 // 회원가입 API
-router.post("/", checkPattern(nameReq,'name'), checkPattern( emailReq,'email'), checkPattern(idReq,'id'), checkPattern(pwReq, 'pw'), checkPattern(genderReq,'gender'), checkPattern(birthReq, 'birth'),checkPattern(telReq,'tel'), checkPattern(addressReq, 'address'), async (req, res, next) => {
-    const { id, pw, name, email, tel, birth, address, gender } = req.body;
+router.post("/", checkPattern(nameReq,'name'), checkPattern(idReq,'id'), checkPattern(pwReq, 'pw'), checkPattern(dateReq, 'birth'),checkPattern(telReq,'tel'), async (req, res, next) => {
+    const { id, pw, name, tel, birth } = req.body;
     const result = {
         success: false,
         message: '',
@@ -222,10 +261,9 @@ router.post("/", checkPattern(nameReq,'name'), checkPattern( emailReq,'email'), 
                         account 
                     WHERE 
                         id = $1 
-                        OR 
-                        email = $2
+
                     `,
-            values: [id, email],
+            values: [id],
         };
         const { rows } = await queryConnect(selectQuery);
 
@@ -243,12 +281,12 @@ router.post("/", checkPattern(nameReq,'name'), checkPattern( emailReq,'email'), 
                                 id,
                                 pw,
                                 tel,
-                                gender
+                                birth
                         ) VALUES (
                             $1, $2, $3, $4, $5
                         );
                     `,
-                values: [name, id, pw, tel, gender],
+                values: [name, id, pw, tel, birth],
             };
             const { rowCount } = await queryConnect(insertQuery);
 
@@ -269,48 +307,6 @@ router.post("/", checkPattern(nameReq,'name'), checkPattern( emailReq,'email'), 
     }
     catch(e){
         next();
-    }
-});
-
-// 비밀번호 변경 API
-router.put("/my", isLogin, checkPattern(pwReq, 'pw'), checkPattern(genderReq,'gender'), checkPattern(birthReq, 'birth'),checkPattern(telReq,'tel'), checkPattern(addressReq, 'address'), async (req, res, next) => {
-    const { pw } = req.body;
-    const userIdx = req.user.idx; 
-    const userId = req.user.id; 
-
-    const result = {
-        success: false,
-        message: '',
-        data: null,
-    };
-
-    try {
-        const query = {
-            text: `
-                    UPDATE 
-                        account
-                    SET 
-                        pw = $1,
-                    WHERE 
-                        idx = $6;
-                    `,
-            values: [pw, tel, gender, address, birth, userIdx],
-        };
-
-        const { rowCount } = await queryConnect(query);
-
-        if (rowCount === 0) {
-            throw new Error("비밀번호 변경 실패");
-        }
-
-        result.success = true;
-        result.data = { pw, tel, gender, address, birth };
-        result.message = "비밀번호 변경 성공";
-
-        res.send(result);
-    } catch (error) {
-        result.message = error.message;
-        next(error);
     }
 });
 
