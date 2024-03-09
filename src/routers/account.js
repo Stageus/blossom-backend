@@ -44,6 +44,23 @@ router.post('/login', checkPattern(idReq, 'id'), checkPattern(pwReq, 'pw'), asyn
             console.log("기존 uid 삭제.");
         }
 
+        const coupleQuery = {
+            text: 'SELECT idx FROM couple WHERE couple1_idx = $1 OR couple2_idx = $1',
+            values: [rows.idx],
+        };
+
+        const queryResult = await queryConnect(coupleQuery);
+        const coupleIdx = queryResult.rows[0].idx;
+
+        //커플 연결 유무 확인 -> 미들웨어로 뺄지말지?
+        if (coupleIdx == null || undefined || 0){
+            return next({
+                message : "커플 연결 되어있지 않음, 커플 연결 해야함",
+                status : 401
+            });
+        }
+
+        //중복로그인
         const uniqueId = uuid.v4();
         console.log("새로운 uid 생성");
 
@@ -55,7 +72,7 @@ router.post('/login', checkPattern(idReq, 'id'), checkPattern(pwReq, 'pw'), asyn
             {
                 id: rows[0].id,
                 idx: rows[0].idx,
-                //couple_idx : rows[0].couple_idx, -> couple 테이블에서 조회??
+                couple_idx : coupleIdx,
                 isadmin: rows[0].isadmin,
                 uuid: uniqueId
             },
@@ -79,7 +96,7 @@ router.post('/login', checkPattern(idReq, 'id'), checkPattern(pwReq, 'pw'), asyn
         result.message = '로그인 오류 발생';
         result.error = error;
         return res.status(500).send(result);
-        
+
     } finally {
         await redis.disconnect();
     }
