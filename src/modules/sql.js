@@ -1,0 +1,12 @@
+const conn = require("../config/database")
+
+async function executeSQL(conn, sql, values) {
+    try {
+        const result = await conn.query(sql, values);
+        return result.rows;
+    } catch (error) {
+        throw new Error("SQL 통신 에러: " + error.message);
+    }
+}
+
+module.exports = { executeSQL };
