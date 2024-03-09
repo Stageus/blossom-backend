@@ -37,6 +37,7 @@ router.post('/login', checkPattern(idReq, 'id'), checkPattern(pwReq, 'pw'), asyn
 
         const prevUniqueId = await redis.get(`user:${rows[0].id}`);
         console.log("prevUniqueId: ",prevUniqueId)
+
         if (prevUniqueId) {
             console.log("중복로그인임.");
             await redis.DEL(`user:${rows[0].id}`);
@@ -78,6 +79,7 @@ router.post('/login', checkPattern(idReq, 'id'), checkPattern(pwReq, 'pw'), asyn
         result.message = '로그인 오류 발생';
         result.error = error;
         return res.status(500).send(result);
+        
     } finally {
         await redis.disconnect();
     }
