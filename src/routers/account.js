@@ -72,7 +72,7 @@ router.post('/login', checkPattern(idReq, 'id'), checkPattern(pwReq, 'pw'), asyn
             {
                 id: rows[0].id,
                 idx: rows[0].idx,
-                couple_idx : coupleIdx,
+                coupleIdx : coupleIdx,
                 isadmin: rows[0].isadmin,
                 uuid: uniqueId
             },
