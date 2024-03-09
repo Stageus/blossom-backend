@@ -3,7 +3,7 @@ const jwt = require('jsonwebtoken');
 //const queryConnect = require('../modules/queryConnect');
 const checkPattern = require("../middleware/checkPattern");
 const redis = require("redis").createClient();
-const { idReq, pwReq, emailReq, nameReq, genderReq, dateReq, addressReq, telReq }= require("../config/patterns");
+const { idReq, pwReq, emailReq, nameReq, genderReq, dateReq, telReq }= require("../config/patterns");
 
 //커플 미들웨어 생성 ??
 //커플 테이블에서 조회한 후, 없으면 커플 초기연결을 해주세요 -> 설정페이지로 이동하게끔?
