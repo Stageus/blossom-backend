@@ -273,10 +273,10 @@ router.put('/couple', checkPattern(imageReq, 'image'), async (req, res, next) =>
         text: `
             UPDATE 
                 couple
-        SET 
-            image_url = $1,
-        WHERE 
-            idx = $6;
+            SET 
+                image_url = $1,
+            WHERE 
+                idx = $6;
                 `,
         values: [newImageUrl, coupleIdx],
     };
