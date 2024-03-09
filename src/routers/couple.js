@@ -5,7 +5,7 @@ const checkPattern = require("../middleware/checkPattern");
 const redis = require("redis").createClient();
 const upload = require("../config/multer");
 const s3 = require("../config/s3")
-const { idReq, pwReq, nameReq, dateReq, telReq }= require("../config/patterns");
+const { idReq,pwReq,nameReq,nicknameReq,imageReq,telReq,dateReq }= require("../config/patterns");
 
 //커플 미들웨어 생성 ??
 //커플 테이블에서 조회한 후, 없으면 커플 초기연결을 해주세요 -> 설정페이지로 이동하게끔?
@@ -325,7 +325,7 @@ router.put('/couple', checkPattern(dateReq, 'date'), async (req, res, next) => {
 
 });
 
-// 커플 이미지 수정 api
+// 커플 이미지 수정 api => ROLLBACK 등등 찾아서 추가하기
 router.put('/couple', upload.single("file"), checkPattern(imageReq, 'image'), async (req, res, next) => {
     const coupleIdx = req.user.coupleIdx; // 토큰에 coupleIdx 추가하기
     const userIdx = req.user.idx
@@ -344,7 +344,7 @@ router.put('/couple', upload.single("file"), checkPattern(imageReq, 'image'), as
             text: 'DELETE image_url FROM couple WHERE idx = $1',
             values: [coupleIdx],
         };
-    
+
         const deleteResult = await queryConnect(deleteImageQuery);
 
         if(deleteResult==0){

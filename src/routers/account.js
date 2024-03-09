@@ -4,7 +4,7 @@ const jwt = require('jsonwebtoken');
 const checkPattern = require("../middleware/checkPattern");
 const redis = require("redis").createClient();
 const uuid = require("uuid")
-const { idReq, pwReq, nameReq, genderReq, dateReq, addressReq, telReq }= require("../config/patterns");
+const { idReq,pwReq,nameReq,nicknameReq,imageReq,telReq,dateReq }= require("../config/patterns");
 
 // 로그인 API
 router.post('/login', checkPattern(idReq, 'id'), checkPattern(pwReq, 'pw'), async (req, res, next) => {
