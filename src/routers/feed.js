@@ -69,7 +69,8 @@ router.get("/search", isLogin, async(req, res, next) => {
 router.post("/", isLogin, async(req,res,next) => {
     // date = 년,월,일 type
     const {content, date, image} = req.body; // image 올리는거 수정필요 (s3 미들웨어 -> 모듈화)
-    
+    const {coupleIdx, accountIdx} = req.decode // isLogin에서 token해석해서 전달
+
     const result = {
         success : false,
         message : ''
@@ -78,15 +79,15 @@ router.post("/", isLogin, async(req,res,next) => {
     try{
         // 이미지가 있는 경우
         if(image){
-            const sql = `INSERT INTO feed (content, date, image_url)
-                         VALUES ($1, $2, $3)`
-            const values = [content, date, image]
+            const sql = `INSERT INTO feed (couple_idx, account_idx, content, date, image_url)
+                         VALUES ($1, $2, $3, $4, $5)`
+            const values = [coupleIdx, accountIdx, content, date, image]
 
         }
         else{ // 이미지 없이 글만 있는 경우
-            const sql = `INSERT INTO feed (content, date)
-                         VALUES ($1, $2)`;
-            const values = [content, date]
+            const sql = `INSERT INTO feed (couple_idx, account_idx, content, date)
+                         VALUES ($1, $2, $3, $4)`;
+            const values = [coupleIdx, accountIdx, content, date]
         }
         const dbResult = await executeSQL(conn, sql, values)
 
