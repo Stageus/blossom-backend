@@ -1,4 +1,4 @@
-const conn = require("../config/database")
+const conn = require("../config/postgresql")
 
 async function executeSQL(conn, sql, values) {
     try {
