@@ -69,7 +69,7 @@ router.get("/search", isLogin, async(req, res, next) => {
 router.post("/", isLogin, async(req,res,next) => {
     // date = 년,월,일 type
     const {content, date, image} = req.body; // image 올리는거 수정필요 (s3 미들웨어 -> 모듈화)
-    const {coupleIdx, accountIdx} = req.decode // isLogin에서 token해석해서 전달
+    const {coupleIdx, accountIdx} = req.decode; // isLogin에서 token해석해서 전달
 
     const result = {
         success : false,
