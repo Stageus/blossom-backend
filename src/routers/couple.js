@@ -21,16 +21,7 @@ router.get('/couple/:idx', async (req, res, next) => {
         data: null
     };
     const query = {
-        text: `
-            SELECT 
-                * 
-            FROM 
-                couple 
-            WHERE 
-                idx = $1 
-                AND 
-                account_idx = $2;
-                `,
+        text: `SELECT * FROM couple WHERE idx = $1 AND account_idx = $2;`,
         values: [coupleIdx, userIdx],
     };
 
@@ -61,17 +52,8 @@ router.post('/couple', checkPattern(nicknameReq, 'nickname'), checkPattern(dateR
         data: null,
     };
 
-    const query = {
-        text: `
-            SELECT 
-                idx 
-            FROM 
-                account 
-            WHERE 
-                id = $1
-                AND
-                matched = false
-                `,
+    const query = { //join 해서 변경하기
+        text: `SELECT idx FROM account WHERE id = $1`,
         values: [couplePartnerId],
     };
 
@@ -86,15 +68,7 @@ router.post('/couple', checkPattern(nicknameReq, 'nickname'), checkPattern(dateR
 
     const couplePartnerIdx = rows.idx
     const insertQuery = {
-        text: `
-                INSERT INTO 
-                    couple (
-                        couple1_idx,
-                        couple2_idx,
-                ) VALUES (
-                    $1, $2
-                );
-            `,
+        text: `INSERT INTO couple (couple1_idx, couple2_idx) VALUES ($1, $2);`,
         values: [userIdx, couplePartnerIdx],
     };
     const { rowCount } = await queryConnect(insertQuery);
@@ -125,14 +99,7 @@ router.post('/couple', checkPattern(nicknameReq, 'nickname'), checkPattern(dateR
     };
 
     const updateAccountQuery = {
-        text: `
-        UPDATE 
-            account
-        SET 
-            nickname = $1,
-        WHERE 
-            idx = $2;
-            `,
+        text: `UPDATE account SET nickname = $1 WHERE idx = $2;`,
         values: [nickname, couplePartnerIdx],
     };
 
@@ -146,16 +113,7 @@ router.post('/couple', checkPattern(nicknameReq, 'nickname'), checkPattern(dateR
     }
 
     const updateCoupleQuery = {
-        text: `
-        UPDATE 
-            couple
-        SET 
-            start_date = $1,
-        WHERE 
-            couple1_idx = $2
-        OR
-            couple2_idx = $2;
-            `,
+        text: `UPDATE couple SET start_date = $1 WHERE couple1_idx = $2 OR couple2_idx = $2;`,
         values: [date, couplePartnerIdx], //userIdx 넣어도 됨
     };
 
@@ -188,16 +146,7 @@ router.put('/couple', checkPattern(nicknameReq, 'nickname'), async (req, res, ne
         data: null
     };
     const query = {
-        text: `
-            SELECT 
-                couple1_idx, couple2_idx 
-            FROM 
-                couple 
-            WHERE 
-                idx = $1 
-                AND 
-                account_idx = $2;
-                `,
+        text: `SELECT couple1_idx, couple2_idx FROM couple WHERE idx = $1 AND account_idx = $2;`,
         values: [coupleIdx, userIdx],
     };
 
@@ -222,14 +171,7 @@ router.put('/couple', checkPattern(nicknameReq, 'nickname'), async (req, res, ne
     }
 
     const updateCoupleQuery = {
-        text: `
-        UPDATE 
-            account
-        SET 
-            nickname = $1,
-        WHERE 
-            idx = $2
-            `,
+        text: `UPDATE account SET nickname = $1 WHERE idx = $2`,
         values: [nickname, couplePartnerIdx], //userIdx 넣어도 됨
     };
 
@@ -262,16 +204,7 @@ router.put('/couple', checkPattern(dateReq, 'date'), async (req, res, next) => {
         data: null
     };
     const query = {
-        text: `
-            SELECT 
-                couple1_idx, couple2_idx 
-            FROM 
-                couple 
-            WHERE 
-                idx = $1 
-                AND 
-                account_idx = $2;
-                `,
+        text: `SELECT couple1_idx, couple2_idx FROM couple WHERE idx = $1 AND account_idx = $2;`,
         values: [coupleIdx, userIdx],
     };
 
@@ -296,14 +229,7 @@ router.put('/couple', checkPattern(dateReq, 'date'), async (req, res, next) => {
     }
 
     const updateCoupleQuery = {
-        text: `
-        UPDATE 
-            account
-        SET 
-            start_date = $1,
-        WHERE 
-            idx = $2
-            `,
+        text: `UPDATE couple SET start_date = $1 WHERE idx = $2`,
         values: [date, coupleIdx], //userIdx 넣어도 됨
     };
 
@@ -387,54 +313,6 @@ router.put('/couple', upload.single("file"), checkPattern(imageReq, 'image'), as
     result.success = true;
     result.message = `커플 이미지 수정 성공.`;
     //result.data = {  };
-
-    res.send(result);
-
-});
-
-// 커플 이미지 삭제 api
-router.delete('/couple', checkPattern(imageReq, 'image'), async (req, res, next) => {
-    const coupleIdx = req.user.coupleIdx; // 토큰에 coupleIdx 추가하기
-    const userIdx = req.user.idx
-    const { deleteImageUrl } = req.body;    
-    const result = {
-        success: false,
-        message: '커플 이미지 삭제 실패',
-        data: null
-    };
-    if (deleteImageUrl) {
-        // deleteImageUrl에서 추가 문자를 제거.
-        const cleanedDeleteImageUrl = deleteImageUrl.trim();
-        
-        // 삭제할 이미지의 S3 URL 가져오기
-        const deleteImageQuery = {
-            text: 'DELETE image_url FROM couple WHERE idx = $1',
-            values: [coupleIdx],
-        };
-    
-        const deleteResult = await queryConnect(deleteImageQuery);
-
-        if(deleteResult==0){
-            return next({
-                message : "커플 이미지 삭제 실패",
-                status : 401
-            })
-        }
-    
-        // S3에서 이미지 삭제
-        const imageKey = cleanedDeleteImageUrl;
-        const decodedKey = decodeURIComponent(imageKey.split('/').pop());
-        await s3.deleteObject({ Bucket: 'sohyunxxistageus', Key: `uploads/${decodedKey}` }).promise();
-    
-        } else {
-            console.log("deleteImageUrl에 대한 이미지를 찾을 수 없습니다:", cleanedDeleteImageUrl);
-            result.message = "deleteImageUrl에 대한 이미지를 찾을 수 없습니다:";
-            //return res.send(result);
-        }
-
-    result.success = true;
-    result.message = `커플 정보 불러오기 성공.`;
-    result.data = { rows };
 
     res.send(result);
 
