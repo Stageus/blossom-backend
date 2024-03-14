@@ -5,7 +5,7 @@ const checkPattern = require("../middleware/checkPattern");
 const makeLog = require("../modules/makelog");
 const redis = require("redis").createClient();
 const uuid = require("uuid")
-const { idReq,pwReq,nameReq,nicknameReq,imageReq,telReq,dateReq }= require("../config/patterns");
+const { idReq,pwReq,nameReq,telReq,dateReq }= require("../config/patterns");
 
 // 로그인 API -> token 방식 대신 uuid 사용?
 router.post('/account/login', checkPattern(idReq, 'id'), checkPattern(pwReq, 'pw'), async (req, res, next) => {
@@ -17,12 +17,11 @@ router.post('/account/login', checkPattern(idReq, 'id'), checkPattern(pwReq, 'pw
     };
 
     try {
-        const query = {
-            text: 'SELECT * FROM account WHERE id = $1 AND pw = $2',
-            values: [id, pw],
-        };
 
-        const { rows } = await queryConnect(query);
+        const sql = "SELECT * FROM account WHERE id = $1 AND pw = $2";
+        const values = [id, pw];
+
+        const { rows } = await executeSQL(conn, sql, values);
 
         if (rows.length === 0) {
             result.message = "일치하는 정보 없음";
@@ -102,12 +101,11 @@ router.get("/account/find/id", checkPattern(nameReq,'name'), checkPattern( telRe
     };
 
     try {
-        const query = {
-            text: `SELECT id FROM account WHERE name = $1 AND tel = $2;`,
-            values: [name, tel],
-        };
 
-        const { rows } = await queryConnect(query);
+        const sql = `SELECT id FROM account WHERE name = $1 AND tel = $2;`;
+        const values = [name, tel];
+
+        const { rows } = await executeSQL(conn, sql, values);
 
         if (rows.length == 0) {
             return next({
@@ -151,12 +149,11 @@ router.get("/account/find/pw",  checkPattern(nameReq,'name'), checkPattern( telR
     }
 
     try{
-        const query = {
-            text: `SELECT pw FROM account WHERE name = $1 AND tel = $2 AND id = $3`,
-            values: [name, tel, id],
-        };
 
-        const { rows } = await queryConnect(query);
+        const sql = `SELECT pw FROM account WHERE name = $1 AND tel = $2 AND id = $3`;
+        const values = [name, tel, id];
+
+        const { rows } = await executeSQL(conn, sql, values);
 
         if (rows.length === 0) {
             return next({
@@ -211,11 +208,10 @@ router.post("/account/signup", checkPattern(nameReq,'name'), checkPattern(idReq,
     };
 
     try {
-        const selectQuery = {
-            text: `SELECT * FROM account WHERE id = $1`,
-            values: [id],
-        };
-        const { rows } = await queryConnect(selectQuery);
+        const sql =`SELECT * FROM account WHERE id = $1`;
+        const values = [id];
+
+        const { rows } = await executeSQL(conn, sql, values);
 
         if (rows.length > 0) {
             return next({
@@ -223,11 +219,10 @@ router.post("/account/signup", checkPattern(nameReq,'name'), checkPattern(idReq,
                 status : 409
             });   
         } else {
-            const insertQuery = {
-                text: `INSERT INTO account (name,id,pw,tel,birth) VALUES ($1, $2, $3, $4, $5);`,
-                values: [name, id, pw, tel, birth],
-            };
-            const { rowCount } = await queryConnect(insertQuery);
+            const insertQuery = `INSERT INTO account (name, id, pw, tel, birth) VALUES ($1, $2, $3, $4, $5);`;
+            const values = [name, id, pw, tel, birth];
+    
+            const { rowCount } = await executeSQL(conn, insertQuery, values);
 
             if (rowCount == 0) {
                 return next({
