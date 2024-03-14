@@ -7,7 +7,7 @@ const uuid = require("uuid")
 const { idReq,pwReq,nameReq,nicknameReq,imageReq,telReq,dateReq }= require("../config/patterns");
 
 // 로그인 API -> token 방식 대신 uuid 사용?
-router.post('/login', checkPattern(idReq, 'id'), checkPattern(pwReq, 'pw'), async (req, res, next) => {
+router.post('/account/login', checkPattern(idReq, 'id'), checkPattern(pwReq, 'pw'), async (req, res, next) => {
     const { id, pw } = req.body;
     const result = {
         success: false,
@@ -68,6 +68,18 @@ router.post('/login', checkPattern(idReq, 'id'), checkPattern(pwReq, 'pw'), asyn
         res.cookie("token", token, { httpOnly: true, secure: false });
         res.send(result);
 
+        const logData = {
+            ip: req.ip,
+            userId: id,
+            apiName: '/account/login',
+            restMethod: 'post',
+            inputData: { id, pw },
+            outputData: result,
+            time: new Date(),
+        };
+    
+        makeLog(req, res, logData, next);
+
     } catch (error) {
         console.error('로그인 오류: ', error);
         result.message = '로그인 오류 발생';
@@ -79,27 +91,8 @@ router.post('/login', checkPattern(idReq, 'id'), checkPattern(pwReq, 'pw'), asyn
     }
 });
 
-// 로그아웃 API
-router.post('/logout', isLogin, async (req, res, next) => {
-    const result = {
-        success: false,
-        message: '로그아웃 실패',
-        data: null
-    };
-
-    try {
-        result.success = true;
-        result.message = '로그아웃 성공';
-        res.status(200).json(result);
-    } catch (error) {
-        next(error);
-    } finally {
-        await redis.disconnect();
-    }
-});
-
 // id 찾기 API -> 이름, 전화번호
-router.get("/findid", checkPattern(nameReq,'name'), checkPattern( telReq,'tel'),async (req, res, next) => {
+router.get("/account/find/id", checkPattern(nameReq,'name'), checkPattern( telReq,'tel'),async (req, res, next) => {
     const { name, tel } = req.body;
     const result = {
         success: false,
@@ -129,14 +122,26 @@ router.get("/findid", checkPattern(nameReq,'name'), checkPattern( telReq,'tel'),
 
         res.send(result);
 
+        const logData = {
+            ip: req.ip,
+            userId: id,
+            apiName: '/account/find/id',
+            restMethod: 'get',
+            inputData: { name,tel },
+            outputData: result,
+            time: new Date(),
+        };
+    
+        makeLog(req, res, logData, next);
+
     } catch (error) {
         result.error = error;
         return next(error);
     }
 });
 
-// pw 찾기 API
-router.get("/findpw",  checkPattern(nameReq,'name'), checkPattern( telReq,'tel'), checkPattern(idReq,'id'), checkPattern(pwReq,'pw'), async (req,res,next) => {
+// pw 찾기 API -> api 명세서랑 다름.. api 명세서는 pw찾기 / pw 변경 따로따로임!
+router.get("/account/find/pw",  checkPattern(nameReq,'name'), checkPattern( telReq,'tel'), checkPattern(idReq,'id'), checkPattern(pwReq,'pw'), async (req,res,next) => {
     const { name, tel, id , pw} = req.body
     const result = {
         "success" : false, 
@@ -173,10 +178,21 @@ router.get("/findpw",  checkPattern(nameReq,'name'), checkPattern( telReq,'tel')
         }
 
         result.success = true;
-        //result.data = {  }; // 빼기?? -> 굳이 뭘 줘야하는게 없음
         result.message = "비밀번호 변경 성공";
 
         res.send(result);
+
+        const logData = {
+            ip: req.ip,
+            userId: id,
+            apiName: '/account/find/pw',
+            restMethod: 'get',
+            inputData: { name, tel, id, pw},
+            outputData: result,
+            time: new Date(),
+        };
+    
+        makeLog(req, res, logData, next);
 
     } catch (error) {
         result.message = error.message;
@@ -185,7 +201,7 @@ router.get("/findpw",  checkPattern(nameReq,'name'), checkPattern( telReq,'tel')
 });
 
 // 회원가입 API
-router.post("/", checkPattern(nameReq,'name'), checkPattern(idReq,'id'), checkPattern(pwReq, 'pw'), checkPattern(dateReq, 'birth'),checkPattern(telReq,'tel'), async (req, res, next) => {
+router.post("/account/signup", checkPattern(nameReq,'name'), checkPattern(idReq,'id'), checkPattern(pwReq, 'pw'), checkPattern(dateReq, 'birth'),checkPattern(telReq,'tel'), async (req, res, next) => {
     const { id, pw, name, tel, birth } = req.body;
     const result = {
         success: false,
@@ -224,7 +240,19 @@ router.post("/", checkPattern(nameReq,'name'), checkPattern(idReq,'id'), checkPa
             result.message = "회원 가입 성공"
         }
 
-        res.send(result)  
+        res.send(result);
+
+        const logData = {
+            ip: req.ip,
+            userId: id,
+            apiName: '/account/signup',
+            restMethod: 'post',
+            inputData: { id, pw, name, tel, birth },
+            outputData: result,
+            time: new Date(),
+        };
+    
+        makeLog(req, res, logData, next);
 
     }
     catch(e){
