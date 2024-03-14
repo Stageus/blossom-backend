@@ -1,7 +1,8 @@
 const router = require("express").Router()
 const jwt = require('jsonwebtoken');
-//const queryConnect = require('../modules/queryConnect');
+const conn = require("../config/postgresql");
 const checkPattern = require("../middleware/checkPattern");
+const makeLog = require("../modules/makelog");
 const redis = require("redis").createClient();
 const uuid = require("uuid")
 const { idReq,pwReq,nameReq,nicknameReq,imageReq,telReq,dateReq }= require("../config/patterns");
