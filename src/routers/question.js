@@ -15,17 +15,16 @@ router.get("/question/all", isLogin, async (req, res, next) => {
     };
 
     try {
-        const query = { //커플 create_at에서 현재 날짜를 뺀 그 총 일수만큼 question 불러오기
-            text: ` SELECT q.*
-                    FROM question q
-                    JOIN couple c ON q.couple_idx = c.idx
-                    WHERE c.idx = $1
-                    AND q.create_at >= CURRENT_TIMESTAMP - INTERVAL '7 days'
-                    ORDER BY q.create_at DESC;
-            `,
-        };
+        const query =`  SELECT q.*
+                        FROM question q
+                        JOIN couple c ON q.couple_idx = c.idx
+                        WHERE c.idx = $1
+                        AND q.create_at >= CURRENT_TIMESTAMP - INTERVAL '7 days'
+                        ORDER BY q.create_at DESC;`;
+        const values = [];
+
+        const { rows } = await executeSQL(conn, query, values);
         
-        const { rows } = await queryConnect(query);
         result.data.questions = rows.question;
 
         result.success = true;
@@ -68,16 +67,11 @@ router.get("/question/:idx", isLogin, async (req, res, next) => {
 
         let partnerIdx;
 
-        const findPartnerQuery ={
-            text:`  SELECT COALESCE(NULLIF(couple1_idx, $1), couple2_idx) AS partner_idx
-                    FROM couple
-                    WHERE couple1_idx = $1 OR couple2_idx = $1;
-                    RETURNING partner_idx
-                    `,
-            values: [userIdx]
-        };
+        const query =` SELECT COALESCE(NULLIF(couple1_idx, $1), couple2_idx) AS partner_idx
+                    FROM couple WHERE couple1_idx = $1 OR couple2_idx = $1 RETURNING partner_idx`;
+        const values = [userIdx];
 
-        const { rows } = await queryConnect(findPartnerQuery);
+        const { rows } =  await executeSQL(conn, query, values);
 
         if (rows.length == 0) {
             return next({
@@ -88,15 +82,13 @@ router.get("/question/:idx", isLogin, async (req, res, next) => {
 
         partnerIdx = rows[0].partner_idx;
 
-        const partnerQuery = {
-            text: ` SELECT * FROM answer
-                    WHERE account_idx = $1
-                    AND question_idx = $2;`
-            ,
-            values: [coupleIdx, questionIdx],
-        };
+        const selectQuery =`SELECT * FROM answer
+                            WHERE account_idx = $1
+                            AND question_idx = $2;`;
+        const selectValues = [coupleIdx, questionIdx];
 
-        const findResult = await queryConnect(partnerQuery);
+        const findResult =  await executeSQL(conn, selectQuery, selectValues);
+
         const findRows = findResult.rows[0]
 
         if (findRows.length == 0) {
@@ -106,15 +98,15 @@ router.get("/question/:idx", isLogin, async (req, res, next) => {
             });
         } 
 
-        const myQuery = {
-            text: ` SELECT * FROM answer
-                    WHERE account_idx = $1
-                    AND question_idx = $2;`
-            ,
-            values: [userIdx, questionIdx],
-        };
 
-        const myResult = await queryConnect(myQuery);
+        
+        const mySelectQuery =`SELECT * FROM answer
+                            WHERE account_idx = $1
+                            AND question_idx = $2;`;
+        const mySelectValues = [userIdx, questionIdx];
+
+        const myResult = await executeSQL(conn, mySelectQuery, mySelectValues);
+
         const myRows = myResult.rows[0]
 
         if (myRows.length == 0) {
@@ -164,12 +156,11 @@ router.post("question/:idx", isLogin, isBlank('content'), async (req, res, next)
         data: null
     };
     try {
-        const answerInsertQuery = {
-            text: 'INSERT INTO answer (content, account_idx, couple_idx, question_idx) VALUES ($1, $2, $3, $4)',
-            values: [content, userIdx, coupleIdx, questionIdx]
-        };
+        const answerInsertQuery =`INSERT INTO answer (content, account_idx, couple_idx, question_idx) VALUES ($1, $2, $3, $4)`;
+        const values = [content, userIdx, coupleIdx, questionIdx];
 
-        const { rowCount } = await queryConnect(answerInsertQuery);
+        const { rowCount } = await executeSQL(conn, answerInsertQuery, values);
+
         if(rowCount==0){
             return next({
                 message: '답변 작성 실패',
