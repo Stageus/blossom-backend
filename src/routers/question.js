@@ -1,6 +1,6 @@
 const router = require("express").Router();
 const isLogin = require('../middleware/isLogin');
-const queryConnect = require('../modules/queryConnect');
+const conn = require("../config/postgresql");
 const makeLog = require("../modules/makelog");
 const isBlank = require("../middleware/isBlank")
 
