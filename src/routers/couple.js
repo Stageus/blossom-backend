@@ -1,11 +1,11 @@
 const router = require("express").Router()
 const jwt = require('jsonwebtoken');
-//const queryConnect = require('../modules/queryConnect');
 const checkPattern = require("../middleware/checkPattern");
+const makeLog = require("../modules/makelog")
 const redis = require("redis").createClient();
 const upload = require("../config/multer");
 const s3 = require("../config/s3")
-const { idReq,pwReq,nameReq,nicknameReq,imageReq,telReq,dateReq }= require("../config/patterns");
+const {nicknameReq,imageReq,dateReq }= require("../config/patterns");
 
 //커플 미들웨어 생성 ??
 //커플 테이블에서 조회한 후, 없으면 커플 초기연결을 해주세요 -> 설정페이지로 이동하게끔?
@@ -21,16 +21,7 @@ router.get('/couple/:idx', async (req, res, next) => {
         data: null
     };
     const query = {
-        text: `
-            SELECT 
-                * 
-            FROM 
-                couple 
-            WHERE 
-                idx = $1 
-                AND 
-                account_idx = $2;
-                `,
+        text: `SELECT * FROM couple WHERE idx = $1 AND account_idx = $2;`,
         values: [coupleIdx, userIdx],
     };
 
@@ -49,10 +40,22 @@ router.get('/couple/:idx', async (req, res, next) => {
 
     res.send(result);
 
+    const logData = {
+        ip: req.ip,
+        userId: id,
+        apiName: '/couple/:idx',
+        restMethod: 'get',
+        inputData: {  },
+        outputData: result,
+        time: new Date(),
+    };
+
+    makeLog(req, res, logData, next);
+
 });
 
 //커플 상대찾기 api => 상대찾기랑 닉네임 사귄날짜 입력을 따로 분리해야하는지? 일단 분리함, 그리고 get인지 post인지 헷갈림
-router.post('/couple', checkPattern(nicknameReq, 'nickname'), checkPattern(dateReq, 'date'), async (req, res, next) => {
+router.get('/couple/find/partner', checkPattern(nicknameReq, 'nickname'), checkPattern(dateReq, 'date'), async (req, res, next) => {
     const userIdx = req.user.idx
     const { couplePartnerId } = req.body;    
     const result = {
@@ -62,16 +65,7 @@ router.post('/couple', checkPattern(nicknameReq, 'nickname'), checkPattern(dateR
     };
 
     const query = {
-        text: `
-            SELECT 
-                idx 
-            FROM 
-                account 
-            WHERE 
-                id = $1
-                AND
-                matched = false
-                `,
+        text: `SELECT idx FROM account WHERE idx NOT IN (SELECT couple1_idx FROM couple UNION ALL SELECT couple2_idx FROM couple)`,
         values: [couplePartnerId],
     };
 
@@ -84,17 +78,10 @@ router.post('/couple', checkPattern(nicknameReq, 'nickname'), checkPattern(dateR
         });  
     }
 
+    //개발 하다보니 이걸 나눠야하지않나? 이부분은 post 아닌감..
     const couplePartnerIdx = rows.idx
     const insertQuery = {
-        text: `
-                INSERT INTO 
-                    couple (
-                        couple1_idx,
-                        couple2_idx,
-                ) VALUES (
-                    $1, $2
-                );
-            `,
+        text: `INSERT INTO couple (couple1_idx, couple2_idx) VALUES ($1, $2);`,
         values: [userIdx, couplePartnerIdx],
     };
     const { rowCount } = await queryConnect(insertQuery);
@@ -112,10 +99,22 @@ router.post('/couple', checkPattern(nicknameReq, 'nickname'), checkPattern(dateR
 
     res.send(result);
 
+    const logData = {
+        ip: req.ip,
+        userId: id,
+        apiName: '/couple/find/partner',
+        restMethod: 'get',
+        inputData: {  },
+        outputData: result,
+        time: new Date(),
+    };
+
+    makeLog(req, res, logData, next);
+
 });
 
 // 커플 정보 등록 api -> 커플 매칭 후!
-router.post('/couple', checkPattern(nicknameReq, 'nickname'), checkPattern(dateReq, 'date'), async (req, res, next) => {
+router.post('/couple/inform', checkPattern(nicknameReq, 'nickname'), checkPattern(dateReq, 'date'), async (req, res, next) => {
     const userIdx = req.user.idx
     const { couplePartnerIdx, nickname, date } = req.body;    
     const result = {
@@ -125,14 +124,7 @@ router.post('/couple', checkPattern(nicknameReq, 'nickname'), checkPattern(dateR
     };
 
     const updateAccountQuery = {
-        text: `
-        UPDATE 
-            account
-        SET 
-            nickname = $1,
-        WHERE 
-            idx = $2;
-            `,
+        text: `UPDATE account SET nickname = $1 WHERE idx = $2;`,
         values: [nickname, couplePartnerIdx],
     };
 
@@ -146,16 +138,7 @@ router.post('/couple', checkPattern(nicknameReq, 'nickname'), checkPattern(dateR
     }
 
     const updateCoupleQuery = {
-        text: `
-        UPDATE 
-            couple
-        SET 
-            start_date = $1,
-        WHERE 
-            couple1_idx = $2
-        OR
-            couple2_idx = $2;
-            `,
+        text: `UPDATE couple SET start_date = $1 WHERE couple1_idx = $2 OR couple2_idx = $2;`,
         values: [date, couplePartnerIdx], //userIdx 넣어도 됨
     };
 
@@ -171,15 +154,26 @@ router.post('/couple', checkPattern(nicknameReq, 'nickname'), checkPattern(dateR
 
     result.success = true;
     result.message = `커플 정보 입력 성공.`;
-    //result.data = {  };
-
+    
     res.send(result);
+
+    const logData = {
+        ip: req.ip,
+        userId: id,
+        apiName: '/couple/inform',
+        restMethod: 'post',
+        inputData: { couplePartnerIdx, nickname, date },
+        outputData: result,
+        time: new Date(),
+    };
+
+    makeLog(req, res, logData, next);
 
 });
 
-// 커플 애칭 수정 api
-router.put('/couple', checkPattern(nicknameReq, 'nickname'), async (req, res, next) => {
-    const coupleIdx = req.user.coupleIdx; // 토큰에 coupleIdx 추가하기
+// 커플 애칭 수정 api -> api명 뒤에 nickname 추가?
+router.put('/couple/inform', checkPattern(nicknameReq, 'nickname'), async (req, res, next) => {
+    const coupleIdx = req.user.coupleIdx;
     const userIdx = req.user.idx
     const { nickname } = req.body;    
     const result = {
@@ -188,16 +182,7 @@ router.put('/couple', checkPattern(nicknameReq, 'nickname'), async (req, res, ne
         data: null
     };
     const query = {
-        text: `
-            SELECT 
-                couple1_idx, couple2_idx 
-            FROM 
-                couple 
-            WHERE 
-                idx = $1 
-                AND 
-                account_idx = $2;
-                `,
+        text: `SELECT couple1_idx, couple2_idx FROM couple WHERE idx = $1 AND account_idx = $2;`,
         values: [coupleIdx, userIdx],
     };
 
@@ -222,14 +207,7 @@ router.put('/couple', checkPattern(nicknameReq, 'nickname'), async (req, res, ne
     }
 
     const updateCoupleQuery = {
-        text: `
-        UPDATE 
-            account
-        SET 
-            nickname = $1,
-        WHERE 
-            idx = $2
-            `,
+        text: `UPDATE account SET nickname = $1 WHERE idx = $2`,
         values: [nickname, couplePartnerIdx], //userIdx 넣어도 됨
     };
 
@@ -245,14 +223,24 @@ router.put('/couple', checkPattern(nicknameReq, 'nickname'), async (req, res, ne
 
     result.success = true;
     result.message = `상대 닉네임 수정 실패.`;
-    //result.data = {  };
-
     res.send(result);
+
+    const logData = {
+        ip: req.ip,
+        userId: id,
+        apiName: '/couple/inform',
+        restMethod: 'put',
+        inputData: { nickname },
+        outputData: result,
+        time: new Date(),
+    };
+
+    makeLog(req, res, logData, next);
 
 });
 
 // 커플 연애날짜 수정 api
-router.put('/couple', checkPattern(dateReq, 'date'), async (req, res, next) => {
+router.put('/couple/inform', checkPattern(dateReq, 'date'), async (req, res, next) => {
     const coupleIdx = req.user.coupleIdx; // 토큰에 coupleIdx 추가하기
     const userIdx = req.user.idx
     const { date } = req.body;    
@@ -262,16 +250,7 @@ router.put('/couple', checkPattern(dateReq, 'date'), async (req, res, next) => {
         data: null
     };
     const query = {
-        text: `
-            SELECT 
-                couple1_idx, couple2_idx 
-            FROM 
-                couple 
-            WHERE 
-                idx = $1 
-                AND 
-                account_idx = $2;
-                `,
+        text: `SELECT couple1_idx, couple2_idx FROM couple WHERE idx = $1 AND account_idx = $2;`,
         values: [coupleIdx, userIdx],
     };
 
@@ -296,14 +275,7 @@ router.put('/couple', checkPattern(dateReq, 'date'), async (req, res, next) => {
     }
 
     const updateCoupleQuery = {
-        text: `
-        UPDATE 
-            account
-        SET 
-            start_date = $1,
-        WHERE 
-            idx = $2
-            `,
+        text: `UPDATE couple SET start_date = $1 WHERE idx = $2`,
         values: [date, coupleIdx], //userIdx 넣어도 됨
     };
 
@@ -319,13 +291,24 @@ router.put('/couple', checkPattern(dateReq, 'date'), async (req, res, next) => {
 
     result.success = true;
     result.message = `연애 날짜 수정 성공.`;
-    //result.data = {  };
 
     res.send(result);
 
+    const logData = {
+        ip: req.ip,
+        userId: id,
+        apiName: '/couple/inform',
+        restMethod: 'put',
+        inputData: { nickname },
+        outputData: result,
+        time: new Date(),
+    };
+
+    makeLog(req, res, logData, next);
+
 });
 
-// 커플 이미지 수정 api => ROLLBACK 등등 찾아서 추가하기
+// 커플 이미지 수정 api => 희주가 만든 업로드 모델로 수정하기
 router.put('/couple', upload.single("file"), checkPattern(imageReq, 'image'), async (req, res, next) => {
     const coupleIdx = req.user.coupleIdx; // 토큰에 coupleIdx 추가하기
     const userIdx = req.user.idx
@@ -362,7 +345,6 @@ router.put('/couple', upload.single("file"), checkPattern(imageReq, 'image'), as
         } else {
             console.log("deleteImageUrl에 대한 이미지를 찾을 수 없습니다:", cleanedDeleteImageUrl);
             result.message = "deleteImageUrl에 대한 이미지를 찾을 수 없습니다:";
-            //return res.send(result);
         }
     
     if (file) {
@@ -386,56 +368,19 @@ router.put('/couple', upload.single("file"), checkPattern(imageReq, 'image'), as
 
     result.success = true;
     result.message = `커플 이미지 수정 성공.`;
-    //result.data = {  };
 
     res.send(result);
 
-});
-
-// 커플 이미지 삭제 api
-router.delete('/couple', checkPattern(imageReq, 'image'), async (req, res, next) => {
-    const coupleIdx = req.user.coupleIdx; // 토큰에 coupleIdx 추가하기
-    const userIdx = req.user.idx
-    const { deleteImageUrl } = req.body;    
-    const result = {
-        success: false,
-        message: '커플 이미지 삭제 실패',
-        data: null
+    const logData = {
+        ip: req.ip,
+        userId: id,
+        apiName: '/couple/inform',
+        restMethod: 'put',
+        inputData: { deleteImageUrl, file },
+        outputData: result,
+        time: new Date(),
     };
-    if (deleteImageUrl) {
-        // deleteImageUrl에서 추가 문자를 제거.
-        const cleanedDeleteImageUrl = deleteImageUrl.trim();
-        
-        // 삭제할 이미지의 S3 URL 가져오기
-        const deleteImageQuery = {
-            text: 'DELETE image_url FROM couple WHERE idx = $1',
-            values: [coupleIdx],
-        };
-    
-        const deleteResult = await queryConnect(deleteImageQuery);
 
-        if(deleteResult==0){
-            return next({
-                message : "커플 이미지 삭제 실패",
-                status : 401
-            })
-        }
-    
-        // S3에서 이미지 삭제
-        const imageKey = cleanedDeleteImageUrl;
-        const decodedKey = decodeURIComponent(imageKey.split('/').pop());
-        await s3.deleteObject({ Bucket: 'sohyunxxistageus', Key: `uploads/${decodedKey}` }).promise();
-    
-        } else {
-            console.log("deleteImageUrl에 대한 이미지를 찾을 수 없습니다:", cleanedDeleteImageUrl);
-            result.message = "deleteImageUrl에 대한 이미지를 찾을 수 없습니다:";
-            //return res.send(result);
-        }
-
-    result.success = true;
-    result.message = `커플 정보 불러오기 성공.`;
-    result.data = { rows };
-
-    res.send(result);
+    makeLog(req, res, logData, next);
 
 });
