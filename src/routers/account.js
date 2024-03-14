@@ -6,18 +6,13 @@ const redis = require("redis").createClient();
 const uuid = require("uuid")
 const { idReq,pwReq,nameReq,nicknameReq,imageReq,telReq,dateReq }= require("../config/patterns");
 
-// 로그인 API
+// 로그인 API -> token 방식 대신 uuid 사용?
 router.post('/login', checkPattern(idReq, 'id'), checkPattern(pwReq, 'pw'), async (req, res, next) => {
     const { id, pw } = req.body;
     const result = {
         success: false,
         message: '로그인 실패',
-        data: {
-            token: "",
-            user: null,
-            dailyLogin: null,
-            totalLogin: null
-        }
+        data: null
     };
 
     try {
@@ -31,17 +26,6 @@ router.post('/login', checkPattern(idReq, 'id'), checkPattern(pwReq, 'pw'), asyn
         if (rows.length === 0) {
             result.message = "일치하는 정보 없음";
             return res.status(401).send(result);
-        }
-      
-        await redis.connect();
-
-        const prevUniqueId = await redis.get(`user:${rows[0].id}`);
-        console.log("prevUniqueId: ",prevUniqueId)
-
-        if (prevUniqueId) {
-            console.log("중복로그인임.");
-            await redis.DEL(`user:${rows[0].id}`);
-            console.log("기존 uid 삭제.");
         }
 
         const coupleQuery = {
@@ -60,14 +44,7 @@ router.post('/login', checkPattern(idReq, 'id'), checkPattern(pwReq, 'pw'), asyn
             });
         }
 
-        //중복로그인
-        const uniqueId = uuid.v4();
-        console.log("새로운 uid 생성");
-
-        await redis.set(`user:${rows[0].id}`, uniqueId);
-        console.log("uniqueId: ",uniqueId)
-        await redis.EXPIRE(`user:${rows[0].id}`, 600000); // 10분 유효
-
+        //빼야하나용??
         const token = jwt.sign(
             {
                 id: rows[0].id,
@@ -104,22 +81,13 @@ router.post('/login', checkPattern(idReq, 'id'), checkPattern(pwReq, 'pw'), asyn
 
 // 로그아웃 API
 router.post('/logout', isLogin, async (req, res, next) => {
-    const userId = req.user.id;
     const result = {
         success: false,
         message: '로그아웃 실패',
         data: null
     };
-    // Redis에서 사용자 ID 제거
-    await redis.connect();
-    
-    const prevUniqueId = await redis.get(`user:${userId}`);
-    console.log("prevUniqueId: ",prevUniqueId)
-    
-    await redis.DEL(`user:${userId}`);
 
     try {
-        res.clearCookie("token");
         result.success = true;
         result.message = '로그아웃 성공';
         res.status(200).json(result);
@@ -141,16 +109,7 @@ router.get("/findid", checkPattern(nameReq,'name'), checkPattern( telReq,'tel'),
 
     try {
         const query = {
-            text: `
-                SELECT 
-                    id 
-                FROM 
-                    account 
-                WHERE 
-                    name = $1 
-                    AND 
-                    tel = $2;
-                    `,
+            text: `SELECT id FROM account WHERE name = $1 AND tel = $2;`,
             values: [name, tel],
         };
 
@@ -187,18 +146,7 @@ router.get("/findpw",  checkPattern(nameReq,'name'), checkPattern( telReq,'tel')
 
     try{
         const query = {
-            text: `
-                SELECT 
-                    pw 
-                FROM 
-                    account 
-                WHERE 
-                    name = $1 
-                    AND 
-                    tel = $2 
-                    AND 
-                    id = $3
-                `,
+            text: `SELECT pw FROM account WHERE name = $1 AND tel = $2 AND id = $3`,
             values: [name, tel, id],
         };
 
@@ -214,14 +162,7 @@ router.get("/findpw",  checkPattern(nameReq,'name'), checkPattern( telReq,'tel')
         const userIdx = rows.idx;
        
         const changePwQuery = {
-            text: `
-                    UPDATE 
-                        account
-                    SET 
-                        pw = $1,
-                    WHERE 
-                        idx = $2;
-                    `,
+            text: `UPDATE account SET pw = $1, WHERE idx = $2;`,
             values: [pw, userIdx],
         };
 
@@ -254,15 +195,7 @@ router.post("/", checkPattern(nameReq,'name'), checkPattern(idReq,'id'), checkPa
 
     try {
         const selectQuery = {
-            text: `
-                    SELECT 
-                        * 
-                    FROM 
-                        account 
-                    WHERE 
-                        id = $1 
-
-                    `,
+            text: `SELECT * FROM account WHERE id = $1`,
             values: [id],
         };
         const { rows } = await queryConnect(selectQuery);
@@ -274,18 +207,7 @@ router.post("/", checkPattern(nameReq,'name'), checkPattern(idReq,'id'), checkPa
             });   
         } else {
             const insertQuery = {
-                text: `
-                        INSERT INTO 
-                            account (
-                                name,
-                                id,
-                                pw,
-                                tel,
-                                birth
-                        ) VALUES (
-                            $1, $2, $3, $4, $5
-                        );
-                    `,
+                text: `INSERT INTO account (name,id,pw,tel,birth) VALUES ($1, $2, $3, $4, $5);`,
                 values: [name, id, pw, tel, birth],
             };
             const { rowCount } = await queryConnect(insertQuery);

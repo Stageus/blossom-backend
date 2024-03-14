@@ -9,7 +9,14 @@ const port = 8000
 
 app.use(express.json()) 
 
-app.use(async (err, req, res, next) => { //next 쓰레기통 구현 -> log 추가해야함
+app.use(async (err, req, res, next) => {
+    const logData = {
+        timestamp: new Date(),
+        message: err.message || '서버 오류',
+        status: err.status || 500,
+    };
+
+    await makeLog(req, res, logData, next);
     
     res.status(err.status || 500).send({
         success: false,
