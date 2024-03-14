@@ -20,6 +20,7 @@ router.get('/couple/:idx', async (req, res, next) => {
         message: '커플 정보 불러오기 실패',
         data: null
     };
+    
     const query = {
         text: `SELECT * FROM couple WHERE idx = $1 AND account_idx = $2;`,
         values: [coupleIdx, userIdx],
