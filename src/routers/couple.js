@@ -22,12 +22,10 @@ router.get('/couple/:idx', async (req, res, next) => {
         data: null
     };
     try{
-        const query = {
-            text: `SELECT * FROM couple WHERE idx = $1 AND account_idx = $2;`,
-            values: [coupleIdx, userIdx],
-        };
-    
-        const { rows } = await queryConnect(query);
+        const sql =`SELECT * FROM couple WHERE idx = $1 AND account_idx = $2;`;
+        const values = [coupleIdx, userIdx];
+
+        const { rows } = await executeSQL(conn, sql, values);
     
         if (rows.length == 0) {
             return next({
@@ -68,13 +66,11 @@ router.get('/couple/find/partner', checkPattern(nicknameReq, 'nickname'), checkP
         message: '커플 정보 등록 실패',
         data: null,
     };
-    try{
-        const query = {
-            text: `SELECT idx FROM account WHERE idx NOT IN (SELECT couple1_idx FROM couple UNION ALL SELECT couple2_idx FROM couple)`,
-            values: [couplePartnerId],
-        };
-    
-        const { rows } = await queryConnect(query);
+    try{// id 주고 그에 맞는 idx 가진 사람들 중에서 고르는거!
+        const sql =`SELECT idx FROM account WHERE idx NOT IN (SELECT couple1_idx FROM couple UNION ALL SELECT couple2_idx FROM couple)`;
+        const values = [couplePartnerId];
+
+        const { rows } = await executeSQL(conn, sql, values);
     
         if (rows.length == 0) {
             return next({
@@ -85,12 +81,12 @@ router.get('/couple/find/partner', checkPattern(nicknameReq, 'nickname'), checkP
     
         //개발 하다보니 이걸 나눠야하지않나? 이부분은 post 아닌감..
         const couplePartnerIdx = rows.idx
-        const insertQuery = {
-            text: `INSERT INTO couple (couple1_idx, couple2_idx) VALUES ($1, $2);`,
-            values: [userIdx, couplePartnerIdx],
-        };
-        const { rowCount } = await queryConnect(insertQuery);
-    
+
+        const insertSql =`INSERT INTO couple (couple1_idx, couple2_idx) VALUES ($1, $2);`;
+        const insertValues = [userIdx, couplePartnerIdx];
+
+        const { rowCount } = await executeSQL(conn, insertSql, insertValues);
+
         if(rowCount==0){
             return next({
                 message : "커플 입력 실패",
@@ -131,26 +127,24 @@ router.post('/couple/inform', checkPattern(nicknameReq, 'nickname'), checkPatter
         data: null
     };
     try{
-        const updateAccountQuery = {
-            text: `UPDATE account SET nickname = $1 WHERE idx = $2;`,
-            values: [nickname, couplePartnerIdx],
-        };
-    
-        const { rowCount } = await queryConnect(updateAccountQuery);
-    
+        const updateAccountQuery =`UPDATE account SET nickname = $1 WHERE idx = $2;`;
+        const updateValues = [nickname, couplePartnerIdx];
+
+        const { rowCount } = await executeSQL(conn, updateAccountQuery, updateValues);
+
         if (rowCount == 0) {
             return next({
                 message : "커플 정보 입력 실패",
                 status : 401
             });  
         }
-    
-        const updateCoupleQuery = {
-            text: `UPDATE couple SET start_date = $1 WHERE couple1_idx = $2 OR couple2_idx = $2;`,
-            values: [date, couplePartnerIdx], //userIdx 넣어도 됨
-        };
-    
-        const queryResult = await queryConnect(updateCoupleQuery);
+        
+        const updateCoupleQuery =`UPDATE couple SET start_date = $1 WHERE couple1_idx = $2 OR couple2_idx = $2;`;
+        const updateCoupleValues = [date, couplePartnerIdx];
+
+        const queryResult = await executeSQL(conn, updateAccountQuery, updateCoupleValues);
+
+        await queryConnect(updateCoupleQuery);
         const updateResult = queryResult.rowCount;
     
         if(updateResult==0){
@@ -194,12 +188,10 @@ router.put('/couple/inform', checkPattern(nicknameReq, 'nickname'), async (req, 
     };
 
     try{
-        const query = {
-            text: `SELECT couple1_idx, couple2_idx FROM couple WHERE idx = $1 AND account_idx = $2;`,
-            values: [coupleIdx, userIdx],
-        };
-    
-        const { rows } = await queryConnect(query);
+        const query =`SELECT couple1_idx, couple2_idx FROM couple WHERE idx = $1 AND account_idx = $2;`;
+        const values = [coupleIdx, userIdx];
+
+        const { rows } = await executeSQL(conn, query, values);
     
         if (rows.length == 0) {
             return next({
@@ -218,13 +210,10 @@ router.put('/couple/inform', checkPattern(nicknameReq, 'nickname'), async (req, 
         else{
             couplePartnerIdx=couple2_idx;
         }
-    
-        const updateCoupleQuery = {
-            text: `UPDATE account SET nickname = $1 WHERE idx = $2`,
-            values: [nickname, couplePartnerIdx], //userIdx 넣어도 됨
-        };
-    
-        const queryResult = await queryConnect(updateCoupleQuery);
+        const updateCoupleQuery = `UPDATE account SET nickname = $1 WHERE idx = $2`;
+        const updateCoupleValues = [nickname, couplePartnerIdx];
+
+        const queryResult = await executeSQL(conn, updateCoupleQuery, updateCoupleValues);
         const updateResult = queryResult.rowCount;
     
         if(updateResult==0){
@@ -267,12 +256,10 @@ router.put('/couple/inform', checkPattern(dateReq, 'date'), async (req, res, nex
     };
 
     try{
-        const query = {
-            text: `SELECT couple1_idx, couple2_idx FROM couple WHERE idx = $1 AND account_idx = $2;`,
-            values: [coupleIdx, userIdx],
-        };
-    
-        const { rows } = await queryConnect(query);
+        const query = `SELECT couple1_idx, couple2_idx FROM couple WHERE idx = $1 AND account_idx = $2;`;
+        const values = [coupleIdx, userIdx];
+
+        const { rows } = await executeSQL(conn, query, values);
     
         if (rows.length == 0) {
             return next({
@@ -291,13 +278,11 @@ router.put('/couple/inform', checkPattern(dateReq, 'date'), async (req, res, nex
         else{
             couplePartnerIdx=couple2_idx;
         }
+        const updateCoupleQuery = `UPDATE couple SET start_date = $1 WHERE idx = $2`;
+        const updateCoupleValues = [date, coupleIdx];
+
+        const queryResult = await executeSQL(conn, updateCoupleQuery, updateCoupleValues);
     
-        const updateCoupleQuery = {
-            text: `UPDATE couple SET start_date = $1 WHERE idx = $2`,
-            values: [date, coupleIdx], //userIdx 넣어도 됨
-        };
-    
-        const queryResult = await queryConnect(updateCoupleQuery);
         const updateResult = queryResult.rowCount;
     
         if(updateResult==0){
@@ -346,12 +331,10 @@ router.put('/couple', upload.single("file"), checkPattern(imageReq, 'image'), as
             const cleanedDeleteImageUrl = deleteImageUrl.trim();
             
             // 삭제할 이미지의 S3 URL 가져오기
-            const deleteImageQuery = {
-                text: 'DELETE image_url FROM couple WHERE idx = $1',
-                values: [coupleIdx],
-            };
-    
-            const deleteResult = await queryConnect(deleteImageQuery);
+            const deleteImageQuery = `DELETE image_url FROM couple WHERE idx = $1;`;
+            const deleteImagevalues = [coupleIdx];
+
+            const deleteResult =  await executeSQL(conn, deleteImageQuery, deleteImagevalues);
     
             if(deleteResult==0){
                 return next({
@@ -375,12 +358,11 @@ router.put('/couple', upload.single("file"), checkPattern(imageReq, 'image'), as
             const imageUrl = file.location;
     
             // 이미지 테이블에 이미지 저장
-            const imageInsertQuery = {
-                text: 'INSERT INTO couple (image_url) VALUES ($1)',
-                values: [imageUrl]
-            };
+            const query = `INSERT INTO couple (image_url) VALUES ($1);`;
+            const values = [imageUrl];
     
-            const {rowCount} = await queryConnect(imageInsertQuery);
+            const {rowCount} = await executeSQL(conn, query, values);
+
             if(rowCount==0){
                 return next({
                     message : "커플 이미지 수정 실패",
