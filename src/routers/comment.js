@@ -1,11 +1,16 @@
 const router = require("express").Router()
 const jwt = require("jsonwebtoken")
-const redis = require("redis").createClient()
+const checkPattern = require("../middleware/checkPattern");
+const isBlank = require("../middleware/isBlank");
+const { idReq,pwReq,nameReq,nicknameReq,imageReq,telReq,dateReq,commentReq } = require("../config/patterns");
 
 const conn = require("../config/postgresql")
 
+// 댓글 정규표현식 추가(1~50자) , checkPattern(commentReq, "content") 추가
+
 // 1. get comment 특정 피드의 전체 댓글 불러오기
-router.get("/", isLogin, async(req, rex, next) => {
+router.get("/", isLogin, isBlank("feedIdx"), async(req, rex, next) => {
+    const { coupleIdx } = req.user;
     // 피드 idx body로 받음
     const feedIdx = req.body;
 
@@ -17,16 +22,23 @@ router.get("/", isLogin, async(req, rex, next) => {
 
     try{
         // 댓글 전체 오래된순으로 가져오기
-        const sql = "SELECT * FROM comment WHERE feed_idx = $1 AND is_delete = false ORDER BY create_at ASC";
-        const values = [feedIdx];
+        const sql = "SELECT * FROM comment WHERE feed_idx = $1 AND couple_idx = $2 AND is_delete = false ORDER BY create_at ASC";
+        const values = [feedIdx, coupleIdx];
 
-        const dbResult = await executeSQL(conn, sql, values)
-        // 실패시
+        const dbResult = await executeSQL(conn, sql, values);
+        
+        // 댓글 가져오기 실패시
+        if (!dbResult || dbResult.length == 0) {
+            // 1. 해당 피드가 존재하고 내 커플꺼도 맞는데 진짜 댓글이 없을 경우 (no error. 정상적으로 보내는 대신 message 남기기)
+            // 2. 해당 피드가 존재하지 않을 경우 (404)
+            // 3. 해당 피드가 존재하는데 접근 권한이 없을 경우 (403)
+            result.message = `${feedIdx}번째에 해당하는 피드에 댓글이 없거나 접근 권한이 없거나 해당 피드가 존재하지 않습니다`;
+        }
 
-        // 성공시
+        // 댓글 가져오기 성공시
         result.success = true;
         result.data = dbResult;
-        result.message = `idx가 ${feedIdx}인 피드의 전체 댓글 가져오기 성공`
+        result.message = `idx가 ${feedIdx}인 피드의 전체 댓글 가져오기 성공`;
         res.status(200).send(result);
         
     }catch(e){
@@ -35,10 +47,9 @@ router.get("/", isLogin, async(req, rex, next) => {
 })
 
 // 2. post comment 특정 피드에 댓글 작성하기
-router.post("/", isLogin, async(req,res,next) => {
-    // date = 년,월,일 type
-    const {content, feedIdx} = req.body; // image 올리는거 수정필요 (s3 미들웨어 -> 모듈화)
-    const { accountIdx } = req.decode // isLogin에서 token 해석해서 가져와야함
+router.post("/", isLogin, isBlank("feedIdx"), checkPattern(commentReq, "content"), async(req,res,next) => {
+    const { accountIdx } = req.user; // isLogin에서 token 해석
+    const { content , feedIdx } = req.body;
 
     const result = {
         success : false,
@@ -47,12 +58,17 @@ router.post("/", isLogin, async(req,res,next) => {
 
     try{
         const sql = `INSERT INTO comment (feed_idx, account_idx, comment)
-                     VALUES ($1, $2, $3)`
-        const values = [feedIdx, accountIdx, content]
+                     VALUES ($1, $2, $3)`;
+        const values = [feedIdx, accountIdx, content];
 
-        const dbResult = await executeSQL(conn, sql, values)
+        const dbResult = await executeSQL(conn, sql, values);
 
         // 댓글 작성 오류일 경우
+        if(dbResult.rowCount == 0){
+            const error = new Error("작성 권한이 없거나 해당 피드가 존재하지 않습니다.");
+            error.status = 404; // 404랑 403이랑 어떻게 나눔?
+            return next(error);
+        }
 
         // 댓글 작성 성공시
         result.success = true;
@@ -65,9 +81,9 @@ router.post("/", isLogin, async(req,res,next) => {
 })
 
 // 3. put comment/:idx 특정 댓글 수정하기
-router.put("/:idx", isLogin, async(req, res, next) => {
-    const {content} = req.body; //newPic은 이미지 처리 필요. delPic은 db에 저장된 url string 형태일것.
-    const { coupleIdx } = req.decode; //--> isLogin에서 토큰 확인후 couple_idx와 account_idx 줘야함
+router.put("/:idx", isLogin, checkPattern(commentReq,"content"), isBlank("commentIdx"), async(req, res, next) => {
+    const { coupleIdx } = req.user; //--> isLogin에서 준거
+    const { content } = req.body;
     const { commentIdx } = req.params.idx;
 
     const result = {
@@ -76,14 +92,21 @@ router.put("/:idx", isLogin, async(req, res, next) => {
     };
 
     try{
-        const sql = `UPDATE comment SET content = $1 WHERE idx = $2 AND couple_idx = $3`
-        const values = [content, commentIdx, coupleIdx]
+        const sql = `UPDATE comment SET content = $1 WHERE idx = $2 AND couple_idx = $3`;
+        const values = [content, commentIdx, coupleIdx];
         
-        const dbResult = await executeSQL(conn, sql, values)
+        const dbResult = await executeSQL(conn, sql, values);
+
+        // 수정 실패시
+        if(dbResult.rowCount == 0){
+            const error = new Error("해당 댓글이 존재하지 않거나 수정 권한이 없습니다.");
+            error.status = 404; // 404랑 403이랑 어떻게 나눔?
+            return next(error);
+        }
 
         // 수정 성공시
         result.success = true;
-        result.message = `idx가 ${commentIdx}인 댓글 수정 성공`
+        result.message = `idx가 ${commentIdx}인 댓글 수정 성공`;
         res.status(200).send(result);
 
     }catch(e){
@@ -92,9 +115,9 @@ router.put("/:idx", isLogin, async(req, res, next) => {
 })
 
 // 4. delete comment/:idx 특정 댓글 삭제하기
-router.delete("/:idx", isLogin,  async(req, res, next) => {
+router.delete("/:idx", isLogin, isBlank("commentIdx"), async(req, res, next) => {
+    const { coupleIdx } = req.user;
     const commentIdx = req.params.idx;
-    const coupleIdx = req.decode;
 
     const result = {
         success : false,
@@ -105,9 +128,14 @@ router.delete("/:idx", isLogin,  async(req, res, next) => {
         const sql = "UPDATE comment SET is_delete = true WHERE idx = $1 AND couple_idx = $2"
         const values = [commentIdx, coupleIdx]
         const dbResult = await executeSQL(conn, sql, values)
-        //실패시
+        // 댓글 soft delete 실패시
+        if(dbResult.rowCount == 0){
+            const error = new Error("삭제 권한이 없거나 해당 댓글이 존재하지 않습니다.");
+            error.status = 404; // 404랑 403이랑 어떻게 나눔?
+            return next(error);
+        }
 
-        //성공시
+        // 댓글 soft delete 성공시
         result.success = true;
         result.message = `idx가 ${commentIdx}인 comment soft delete 성공`
     }catch(e){
