@@ -5,5 +5,6 @@ const nicknameReq = /^[a-zA-Z가-힣]{2,50}$/
 const telReq = /^[0-9]{11}$/
 const dateReq = /^\d{4}(0[1-9]|1[0-2])(0[1-9]|[12][0-9]|3[01])$/
 const imageReq = /\.(jpg|jpeg|png|gif)$/i;
+const commentReq = /^.{1,50}$/;
 
-module.exports ={idReq,pwReq,nameReq,nicknameReq,imageReq,telReq,dateReq};
+module.exports ={idReq,pwReq,nameReq,nicknameReq,imageReq,telReq,dateReq,commentReq};
