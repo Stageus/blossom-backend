@@ -3,10 +3,11 @@ const jwt = require("jsonwebtoken");
 const checkPattern = require("../middleware/checkPattern");
 const isBlank = require("../middleware/isBlank");
 const { idReq,pwReq,nameReq,nicknameReq,imageReq,telReq,dateReq } = require("../config/patterns");
+const { uploadImage } = require("../modules/uploadImage")
+const { s3 } = require("../config/s3")
 
 const conn = require("../config/postgresql");
 
-// 피드 이미지 올리는거 모듈화? 미들웨어말고
 // feed table의 date = date type (YYYY-MM-DD)
 
 // 1. get feed/all 피드 전체 불러오기
@@ -73,7 +74,13 @@ router.get("/search", isLogin, checkPattern(dateReq, "date"), async(req, res, ne
 router.post("/", isLogin, isBlank("content"), checkPattern(dateReq, "date"), async(req,res,next) => {
     const {coupleIdx, accountIdx} = req.user; // isLogin에서 token해석해서 전달
     // date = 년,월,일 type
-    const {content, date, image} = req.body; // image 올리는거 수정필요 (s3 미들웨어 -> 모듈화)
+    const {content, date} = req.body;
+    
+    // 이미지(0~1장) -> 이미지가 있을 경우에만 업로드 함수 실행
+    let image;
+    if(req.file){
+        image = uploadImage("image");
+    }
 
     const result = {
         success : false,
