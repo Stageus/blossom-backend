@@ -26,9 +26,7 @@ router.get("/question/all", isLogin, async (req, res, next) => {
                         WHERE c.idx = $1
                         AND q.create_at >= CURRENT_TIMESTAMP - (SELECT create_at FROM couple WHERE idx = $1)
                         ORDER BY q.create_at DESC
-                        LIMIT $2 OFFSET $3;
-                        
-        `;
+                        LIMIT $2 OFFSET $3; `;
         const values = [coupleIdx, pageSize, offset];
 
         const { rows } = await executeSQL(conn, query, values);
