@@ -4,7 +4,6 @@ const conn = require("../config/postgresql");
 const checkPattern = require("../middleware/checkPattern");
 const makeLog = require("../modules/makelog");
 const redis = require("redis").createClient();
-const uuid = require("uuid")
 const { idReq,pwReq,nameReq,telReq,dateReq }= require("../config/patterns");
 
 // 로그인 API -> token 방식 대신 uuid 사용?
@@ -49,7 +48,6 @@ router.post('/account/login', checkPattern(idReq, 'id'), checkPattern(pwReq, 'pw
                 idx: rows[0].idx,
                 coupleIdx : coupleIdx,
                 isadmin: rows[0].isadmin,
-                uuid: uniqueId
             },
             process.env.SECRET_KEY,
             {
