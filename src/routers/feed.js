@@ -2,7 +2,7 @@ const router = require("express").Router();
 const jwt = require("jsonwebtoken");
 const checkPattern = require("../middleware/checkPattern");
 const isBlank = require("../middleware/isBlank");
-const { idReq,pwReq,nameReq,nicknameReq,imageReq,telReq,dateReq } = require("../config/patterns");
+const { idReq,pwReq,nameReq,nicknameReq,imageReq,telReq,dateReq,feedReq } = require("../config/patterns");
 const { uploadImage } = require("../modules/uploadImage")
 const { s3 } = require("../config/s3")
 
@@ -78,7 +78,7 @@ router.post("/", isLogin, isBlank("content"), checkPattern(dateReq, "date"), asy
     
     // 이미지(0~1장) -> 이미지가 있을 경우에만 업로드 함수 실행
     let image;
-    if(req.file){
+    if(req.files && req.files.image){
         image = uploadImage("image");
     }
 
@@ -105,9 +105,14 @@ router.post("/", isLogin, isBlank("content"), checkPattern(dateReq, "date"), asy
 })
 
 // 4. put feed/:idx 특정 피드 수정하기
-router.put("/:idx", isLogin, isBlank("content"), async(req, res, next) => {
+router.put("/:idx", isLogin, checkPattern(feedReq, "content"), async(req, res, next) => {
     const { coupleIdx } = req.user; //--> isLogin에서 토큰 확인후 couple_idx와 account_idx 줘야함
-    const {content, newPic, delPic} = req.body; //newPic은 이미지 처리 필요. delPic은 db에 저장된 url string 형태일것.
+    const {content, delPic} = req.body;
+    let newPic;
+    if(req.files && req.files.image){
+        newPic = uploadImage("image")
+    }
+    
     const feedIdx = req.params.idx;
 
     const result = {
@@ -116,12 +121,14 @@ router.put("/:idx", isLogin, isBlank("content"), async(req, res, next) => {
     };
 
     try{
-        // 1. 이미지추가만
-        // 2. 이미지추가, 글 수정
-        // 3. 이미지 수정만
-        // 4. 이미지 수정, 글 수정
-        // 5. 이미지 삭제만
-        // 6. 이미지 삭제, 글 수정
+        // 1. 이미지추가만 (content=x newPic=add delPic=x)
+        // 2. 이미지추가, 글 수정 (content=modify newPic=add delPic=x)
+        // 3. 이미지 수정만 (content=x newPic=modify delPic=modify)
+        // 4. 이미지 수정, 글 수정 (content=modify newPic=modify delPic=modify)
+
+        // 이미지 삭제도 있나? 
+        // 5. 이미지 삭제만 (content=x newPic=x delPic=delete) 
+        // 6. 이미지 삭제, 글 수정 (content=modify newPic=x delPic=delete)
 
         const sql = `UPDATE feed SET content = $1, image_url = $2 WHERE idx = $3 AND couple_idx = $4`;
         const values = [content, newPic, feedIdx, coupleIdx];
