@@ -6,6 +6,9 @@ const isBlank = require("../middleware/isBlank")
 
 // 문답 전체 목록 불러오기 API
 router.get("/question/all", isLogin, async (req, res, next) => {
+    const coupleIdx = req.user.coupleIdx;
+    const pageNumber = req.query.page || 1; // 페이지 번호, 기본값은 1 => 페이지 값은 프엔이 준다는 가정
+    const pageSize = 20; // 페이지당 항목 수
     const result = {
         success: false,
         message: "",
@@ -15,15 +18,27 @@ router.get("/question/all", isLogin, async (req, res, next) => {
     };
 
     try {
+        //페이지네이션 추가
+        const offset = (pageNumber - 1) * pageSize; // 가져올 데이터의 시작 위치 계산
         const query =`  SELECT q.*
                         FROM question q
                         JOIN couple c ON q.couple_idx = c.idx
                         WHERE c.idx = $1
-                        AND q.create_at >= CURRENT_TIMESTAMP - INTERVAL '7 days'
-                        ORDER BY q.create_at DESC;`;
-        const values = [];
+                        AND q.create_at >= CURRENT_TIMESTAMP - (SELECT create_at FROM couple WHERE idx = $1)
+                        ORDER BY q.create_at DESC
+                        LIMIT $2 OFFSET $3;
+                        
+        `;
+        const values = [coupleIdx, pageSize, offset];
 
         const { rows } = await executeSQL(conn, query, values);
+
+        if (rows.length == 0) {
+            return next({
+                message : "일치하는 정보 없음",
+                status : 404
+            });  
+        }
         
         result.data.questions = rows.question;
 
@@ -36,7 +51,7 @@ router.get("/question/all", isLogin, async (req, res, next) => {
             userId: id,
             apiName: '/question/all',
             restMethod: 'get',
-            inputData: {  },
+            inputData: { },
             outputData: result,
             time: new Date(),
         };
@@ -67,8 +82,8 @@ router.get("/question/:idx", isLogin, async (req, res, next) => {
 
         let partnerIdx;
 
-        const query =` SELECT COALESCE(NULLIF(couple1_idx, $1), couple2_idx) AS partner_idx
-                    FROM couple WHERE couple1_idx = $1 OR couple2_idx = $1 RETURNING partner_idx`;
+        const query =`  SELECT COALESCE(NULLIF(couple1_idx, $1), couple2_idx) AS partner_idx
+                        FROM couple WHERE couple1_idx = $1 OR couple2_idx = $1 RETURNING partner_idx`;
         const values = [userIdx];
 
         const { rows } =  await executeSQL(conn, query, values);
@@ -76,7 +91,7 @@ router.get("/question/:idx", isLogin, async (req, res, next) => {
         if (rows.length == 0) {
             return next({
                 message: '상대방 idx 불러오기 실패',
-                status: 500
+                status: 404
             });
         } 
 
@@ -97,8 +112,6 @@ router.get("/question/:idx", isLogin, async (req, res, next) => {
                 status: 500
             });
         } 
-
-
         
         const mySelectQuery =`SELECT * FROM answer
                             WHERE account_idx = $1
@@ -144,7 +157,7 @@ router.get("/question/:idx", isLogin, async (req, res, next) => {
     }
 });
 
-// 문답 답변 쓰기 API -> 수정하기
+// 문답 답변 쓰기 API
 router.post("question/:idx", isLogin, isBlank('content'), async (req, res, next) => {
     const userIdx = req.user.idx;
     const coupleIdx = req.user.coupleIdx;
