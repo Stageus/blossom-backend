@@ -1,12 +1,15 @@
 const jwt = require("jsonwebtoken");
 
 const isLogin = (req, res, next) => {
-    const token = req.cookies.token;
+    //cookie 를 제거하고 직접 토큰을 FE에게 보내는 식으로 변경.
+    const authorizationHeader = req.headers.authorization;
     try {
-        if (!token) {
+        if (!authorizationHeader) {
             throw new Error("no token");
         }
 
+        const token = authorizationHeader.split(' ')[1]; // "Bearer <token>" 형태에서 <token> 부분 추출
+        console.log("토큰: ", token)
         const decoded = jwt.verify(token, process.env.SECRET_KEY);
         req.user = decoded; // 디코딩된 사용자 정보를 req.user에 추가
 
