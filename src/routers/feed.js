@@ -107,13 +107,13 @@ router.post("/", isLogin, isBlank("content"), checkPattern(dateReq, "date"), asy
 // 4. put feed/:idx 특정 피드 수정하기
 router.put("/:idx", isLogin, checkPattern(feedReq, "content"), async(req, res, next) => {
     const { coupleIdx } = req.user; //--> isLogin에서 토큰 확인후 couple_idx와 account_idx 줘야함
-    const {content, delPic} = req.body;
-    let newPic;
-    if(req.files && req.files.image){
-        newPic = uploadImage("image")
-    }
-    
+    const {content, fileFlag} = req.body; // fileFlag = 0 -> 기존꺼(text경로) / 1 -> 새로운거(file이니까 처리 필요)
+    let image = req.body;
     const feedIdx = req.params.idx;
+
+    if(fileFlag == 1 && (!image || image == null)){ // 이미지가 새로운 것이라면 s3에 업로드
+        image = uploadImage("image");
+    }
 
     const result = {
         success : false,
@@ -121,7 +121,11 @@ router.put("/:idx", isLogin, checkPattern(feedReq, "content"), async(req, res, n
     };
 
     try{
-        // 1. 이미지추가만 (content=x newPic=add delPic=x)
+        const sql = `UPDATE feed SET content = $1 AND image_url = $2 WHERE idx = $3 AND couple_idx = $4`
+        const values = [content, feedIdx, coupleIdx]
+        
+        const dbResult = await executeSQL(conn, sql, values)
+        // 1. 이미지추가만
         // 2. 이미지추가, 글 수정 (content=modify newPic=add delPic=x)
         // 3. 이미지 수정만 (content=x newPic=modify delPic=modify)
         // 4. 이미지 수정, 글 수정 (content=modify newPic=modify delPic=modify)
@@ -129,11 +133,6 @@ router.put("/:idx", isLogin, checkPattern(feedReq, "content"), async(req, res, n
         // 이미지 삭제도 있나? 
         // 5. 이미지 삭제만 (content=x newPic=x delPic=delete) 
         // 6. 이미지 삭제, 글 수정 (content=modify newPic=x delPic=delete)
-
-        const sql = `UPDATE feed SET content = $1, image_url = $2 WHERE idx = $3 AND couple_idx = $4`;
-        const values = [content, newPic, feedIdx, coupleIdx];
-        
-        const dbResult = await executeSQL(conn, sql, values);
         
         // 수정 실패시
         if(dbResult.rowCount == 0){
