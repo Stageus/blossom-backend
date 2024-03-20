@@ -195,7 +195,7 @@ router.get("/all", isBlank("date"), async(req, rex, next) => {
 //     }
 // })
 
-// module.exports = router
+module.exports = router
 
 app.use("/",router);
 //
