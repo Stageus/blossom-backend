@@ -110,7 +110,7 @@ router.delete("/:idx", isLogin, isBlank("commentIdx"), async(req, res, next) => 
 
     try{
         // const sql = "UPDATE comment SET is_delete = true WHERE idx = $1 AND couple_idx = $2"
-        const sql = "DELETE comment WHERE idx=$1 AND couple_idx = $2"
+        const sql = "DELETE FROM comment WHERE idx=$1 AND couple_idx = $2"
         const values = [commentIdx, coupleIdx]
 
         await executeSQL(conn, sql, values)
