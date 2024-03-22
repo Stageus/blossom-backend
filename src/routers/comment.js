@@ -6,8 +6,6 @@ const { idReq,pwReq,nameReq,nicknameReq,imageReq,telReq,dateReq,commentReq } = r
 
 const conn = require("../config/postgresql")
 
-// 댓글 정규표현식 추가(1~50자) , checkPattern(commentReq, "content") 추가
-
 // 1. get comment 특정 피드의 전체 댓글 불러오기
 router.get("/", isLogin, isBlank("feedIdx"), async(req, rex, next) => {
     const { coupleIdx } = req.user;
@@ -61,14 +59,7 @@ router.post("/", isLogin, isBlank("feedIdx"), checkPattern(commentReq, "content"
                      VALUES ($1, $2, $3)`;
         const values = [feedIdx, accountIdx, content];
 
-        const dbResult = await executeSQL(conn, sql, values);
-
-        // 댓글 작성 오류일 경우
-        if(dbResult.rowCount == 0){
-            const error = new Error("작성 권한이 없거나 해당 피드가 존재하지 않습니다.");
-            error.status = 404; // 404랑 403이랑 어떻게 나눔?
-            return next(error);
-        }
+        await executeSQL(conn, sql, values);
 
         // 댓글 작성 성공시
         result.success = true;
@@ -95,14 +86,7 @@ router.put("/:idx", isLogin, checkPattern(commentReq,"content"), isBlank("commen
         const sql = `UPDATE comment SET content = $1 WHERE idx = $2 AND couple_idx = $3`;
         const values = [content, commentIdx, coupleIdx];
         
-        const dbResult = await executeSQL(conn, sql, values);
-
-        // 수정 실패시
-        if(dbResult.rowCount == 0){
-            const error = new Error("해당 댓글이 존재하지 않거나 수정 권한이 없습니다.");
-            error.status = 404; // 404랑 403이랑 어떻게 나눔?
-            return next(error);
-        }
+        await executeSQL(conn, sql, values);
 
         // 수정 성공시
         result.success = true;
@@ -114,7 +98,7 @@ router.put("/:idx", isLogin, checkPattern(commentReq,"content"), isBlank("commen
     }
 })
 
-// 4. delete comment/:idx 특정 댓글 삭제하기
+// 4. delete comment/:idx 특정 댓글 삭제하기 (hard delete)
 router.delete("/:idx", isLogin, isBlank("commentIdx"), async(req, res, next) => {
     const { coupleIdx } = req.user;
     const commentIdx = req.params.idx;
@@ -125,15 +109,11 @@ router.delete("/:idx", isLogin, isBlank("commentIdx"), async(req, res, next) => 
     };
 
     try{
-        const sql = "UPDATE comment SET is_delete = true WHERE idx = $1 AND couple_idx = $2"
+        // const sql = "UPDATE comment SET is_delete = true WHERE idx = $1 AND couple_idx = $2"
+        const sql = "DELETE comment WHERE idx=$1 AND couple_idx = $2"
         const values = [commentIdx, coupleIdx]
-        const dbResult = await executeSQL(conn, sql, values)
-        // 댓글 soft delete 실패시
-        if(dbResult.rowCount == 0){
-            const error = new Error("삭제 권한이 없거나 해당 댓글이 존재하지 않습니다.");
-            error.status = 404; // 404랑 403이랑 어떻게 나눔?
-            return next(error);
-        }
+
+        await executeSQL(conn, sql, values)
 
         // 댓글 soft delete 성공시
         result.success = true;
