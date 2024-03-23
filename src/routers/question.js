@@ -7,27 +7,27 @@ const isBlank = require("../middleware/isBlank")
 // 문답 전체 목록 불러오기 API
 router.get("/question/all", isLogin, async (req, res, next) => {
     const coupleIdx = req.user.coupleIdx;
-    const pageNumber = req.query.page || 1; // 페이지 번호, 기본값은 1 => 페이지 값은 프엔이 준다는 가정
-    const pageSize = 20; // 페이지당 항목 수
+    const lastQuestionIdx = req.query.lastQuestionIdx || 0; // 마지막으로 로드된 질문의 인덱스
+    const itemSize = 20; // 페이지당 항목 수
     const result = {
         success: false,
         message: "",
-        data:{
+        data: {
             questions: []
         }
     };
 
     try {
-        //페이지네이션 추가
-        const offset = (pageNumber - 1) * pageSize; // 가져올 데이터의 시작 위치 계산
-        const query =`  SELECT q.*
+        const query = ` SELECT q.*
                         FROM question q
                         JOIN couple c ON q.couple_idx = c.idx
                         WHERE c.idx = $1
-                        AND q.create_at >= CURRENT_TIMESTAMP - (SELECT create_at FROM couple WHERE idx = $1)
+                        AND q.create_at >= (SELECT create_at FROM couple WHERE idx = $1)
+                        AND q.idx < $2
                         ORDER BY q.create_at DESC
-                        LIMIT $2 OFFSET $3; `;
-        const values = [coupleIdx, pageSize, offset];
+                        LIMIT $3;`;
+        const values = [coupleIdx, lastQuestionIdx, itemSize];
+
 
         const { rows } = await executeSQL(conn, query, values);
 
