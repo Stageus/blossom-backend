@@ -2,6 +2,7 @@ const router = require("express").Router()
 const jwt = require("jsonwebtoken")
 const checkPattern = require("../middleware/checkPattern");
 const isBlank = require("../middleware/isBlank");
+const isLogin = require("../middleware/isLogin");
 const { idReq,pwReq,nameReq,nicknameReq,imageReq,telReq,dateReq,commentReq } = require("../config/patterns");
 
 const conn = require("../config/postgresql")
