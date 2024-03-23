@@ -1,14 +1,3 @@
-//==========package============
-const express = require("express");
-const app = express()
-const port = 8000
-
-app.use(express.json()) 
-
-require('dotenv').config()
-
-/////////////////
-
 const router = require("express").Router()
 const jwt = require("jsonwebtoken")
 const checkPattern = require("../middleware/checkPattern");
@@ -183,9 +172,3 @@ router.delete("/:idx", async(req, res, next) => {
 })
 
 module.exports = router
-
-app.use("/",router);
-//
-app.listen(port, () => {
-    console.log(`${port}번에서 HTTP 웹서버 실행`);
-});
