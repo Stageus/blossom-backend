@@ -1,3 +1,13 @@
+//==========package============
+const express = require("express");
+const app = express()
+const port = 8000
+
+app.use(express.json()) 
+
+require('dotenv').config()
+
+////////////////////////////
 const router = require("express").Router()
 const jwt = require("jsonwebtoken")
 const checkPattern = require("../middleware/checkPattern");
@@ -13,8 +23,25 @@ const conn = require("../config/postgresql");
 // 1.get schedule/all 특정 월의 전체 일정 불러오기
 // date 형식 어떻게 받을지에 따라 isBlank 혹은 다른 미들웨어 써야할듯
 
+router.get("/test", async(req, res,next) => {
+    const result = {
+        message : "",
+        data : null
+    }
+    const sql = `INSERT INTO account (id, pw, name, birth, tel, nickname) VALUES
+    ('hee', 'password3', 'heehee', '2002-02-09', '010-9876-1111', 'hh')`;
+    const values = [];
+
+    const dbResult = await executeSQL(conn, sql, values);
+
+    result.data = dbResult;
+
+    res.status(200).send(result);
+})
+
+
 // TODO : test 하느라 islogin 다 뺐다 -> 나중에 넣자
-router.get("/all", isBlank("date"), async(req, rex, next) => {
+router.get("/all", isBlank("date"), async(req, res, next) => {
     // const { coupleIdx } = req.user;
     const { coupleIdx } = 1; // test용
     const { date } = req.body; // 년, 월만 받으면됨 --> Year, Month 각각 받는게 나은지?
@@ -172,3 +199,10 @@ router.delete("/:idx", async(req, res, next) => {
 })
 
 module.exports = router
+
+/////////////////////////////
+app.use("/",router);
+//
+app.listen(port, () => {
+    console.log(`${port}번에서 HTTP 웹서버 실행`);
+});
