@@ -156,13 +156,29 @@ router.post('/couple/:partnerIdx', isLogin, checkPattern(nicknameReq, 'nickname'
 
 // 커플 정보 등록 api -> 커플 매칭 후!
 router.post('/couple/inform', isLogin, isCouple, checkPattern(nicknameReq, 'nickname'), checkPattern(dateReq, 'date'), async (req, res, next) => {
-    const { nickname, date } = req.body; 
+    const { nickname, date } = req.body;
+    const userIdx = req.user.idx;
     const result = {
         success: false,
         message: '커플 정보 등록 실패',
         data: null
     };
     try{
+        const selectPartnerQuery = `SELECT COALESCE(NULLIF(couple1_idx, $1), couple2_idx) AS partner_idx
+                                    FROM couple WHERE couple1_idx = $1 OR couple2_idx = $1 RETURNING partner_idx `;
+        const selectValues = [userIdx];
+
+        const { rows } = await executeSQL(conn, selectPartnerQuery, selectValues);
+
+        if(rows == 0) {
+            return next({
+                message : "커플 상대방 조회 오류",
+                status : 404
+            })
+        }
+
+        const couplePartnerIdx = rows[0].partner_idx;
+
         const updateAccountQuery =`UPDATE account SET nickname = $1 WHERE idx = $2;`;
         const updateValues = [nickname, couplePartnerIdx];
 
@@ -201,7 +217,7 @@ router.post('/couple/inform', isLogin, isCouple, checkPattern(nicknameReq, 'nick
             userId: id,
             apiName: '/couple/inform',
             restMethod: 'post',
-            inputData: { couplePartnerIdx, nickname, date },
+            inputData: { nickname, date },
             outputData: result,
             time: new Date(),
         };
