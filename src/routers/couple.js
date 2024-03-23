@@ -1,19 +1,16 @@
-const router = require("express").Router()
+const router = require("express").Router();
 const jwt = require('jsonwebtoken');
 const checkPattern = require("../middleware/checkPattern");
 const makeLog = require("../modules/makelog");
-const conn = require("../config/postgresql")
+const conn = require("../config/postgresql");
 const redis = require("redis").createClient();
 const upload = require("../config/multer");
-const s3 = require("../config/s3")
+const s3 = require("../config/s3");
+const regenerateToken = require("../modules/regenerateToken");
 const {nicknameReq,imageReq,dateReq }= require("../config/patterns");
 
-//커플 미들웨어 생성 ??
-//커플 테이블에서 조회한 후, 없으면 커플 초기연결을 해주세요 -> 설정페이지로 이동하게끔?
-// 커플 테이블에서 조회한 후 결과 있으면 
-
 // 커플 정보 불러오기 api
-router.get('/couple/inform', isLogin, async (req, res, next) => { //idx 로 불러오는 방식에서 명세서대로 변경
+router.get('/couple/inform', isLogin, isCouple, async (req, res, next) => { //idx 로 불러오는 방식에서 명세서대로 변경
     const coupleIdx = req.user.coupleIdx; // 토큰에 coupleIdx 추가하기
     const userIdx = req.user.idx
     const result = {
@@ -57,68 +54,6 @@ router.get('/couple/inform', isLogin, async (req, res, next) => { //idx 로 불�
     }
 });
 
-//커플 상대찾기 api => 합친 버전
-router.get('/couple/find/partner', isLogin, checkPattern(nicknameReq, 'nickname'), checkPattern(dateReq, 'date'), async (req, res, next) => {
-    const userIdx = req.user.idx
-    const { couplePartnerId } = req.body;    
-    const result = {
-        success: false,
-        message: '커플 정보 등록 실패',
-        data: null,
-    };
-    try{// id 주고 그에 맞는 idx 가진 사람들 중에서 고르는거!
-        const sql =`SELECT idx FROM account WHERE idx NOT IN (SELECT couple1_idx FROM couple UNION ALL SELECT couple2_idx FROM couple)`;
-        const values = [couplePartnerId];
-
-        const { rows } = await executeSQL(conn, sql, values);
-    
-        if (rows.length == 0) {
-            return next({
-                message : "일치하는 상대 정보 없음",
-                status : 404
-            });  
-        }
-    
-        //개발 하다보니 이걸 나눠야하지않나? 이부분은 post 아닌감..
-        const couplePartnerIdx = rows.idx
-
-        const insertSql =`INSERT INTO couple (couple1_idx, couple2_idx) VALUES ($1, $2);`;
-        const insertValues = [userIdx, couplePartnerIdx];
-
-        const { rowCount } = await executeSQL(conn, insertSql, insertValues);
-
-        if(rowCount==0){
-            return next({
-                message : "커플 입력 실패",
-                status : 500
-            });  
-        }
-    
-        result.success = true;
-        result.message = `커플 정보 입력 성공.`;
-        result.data = { couplePartnerIdx };
-    
-        res.send(result);
-    
-        const logData = {
-            ip: req.ip,
-            userId: id,
-            apiName: '/couple/find/partner',
-            restMethod: 'get',
-            inputData: {  },
-            outputData: result,
-            time: new Date(),
-        };
-    
-        makeLog(req, res, logData, next);
-    } catch (error) {
-        result.error = error;
-        return next(error);
-    }
-});
-
-//--------------커플 매칭 명세서 버전 ( 상대 찾기, 상대 매칭 2개로 나눔, 위 버전은 합친 버전 상대찾기 + 상대 매칭 )
-
 //상대 찾기 api
 router.get('/couple/find/partner', isLogin, checkPattern(nicknameReq, 'nickname'), checkPattern(dateReq, 'date'), async (req, res, next) => {
     const userIdx = req.user.idx
@@ -128,7 +63,7 @@ router.get('/couple/find/partner', isLogin, checkPattern(nicknameReq, 'nickname'
         message: '상대 찾기 실패',
         data: null,
     };
-    try{// id 주고 그에 맞는 idx 가진 사람들 중에서 고르는거!
+    try{
         const sql =`SELECT idx FROM account WHERE idx NOT IN (SELECT couple1_idx FROM couple UNION ALL SELECT couple2_idx FROM couple)`;
         const values = [couplePartnerId];
 
@@ -141,7 +76,6 @@ router.get('/couple/find/partner', isLogin, checkPattern(nicknameReq, 'nickname'
             });  
         }
     
-        //개발 하다보니 이걸 나눠야하지않나? 이부분은 post 아닌감..
         const couplePartnerIdx = rows.idx
     
         result.success = true;
@@ -176,25 +110,29 @@ router.post('/couple/:partnerIdx', isLogin, checkPattern(nicknameReq, 'nickname'
         message: '커플 정보 등록 실패',
         data: null,
     };
-    try{
-        const insertSql =`INSERT INTO couple (couple1_idx, couple2_idx) VALUES ($1, $2);`;
+    try {
+        const insertSql =`INSERT INTO couple (couple1_idx, couple2_idx) VALUES ($1, $2) RETURNING idx;`;
         const insertValues = [userIdx, partnerIdx];
 
-        const { rowCount } = await executeSQL(conn, insertSql, insertValues);
+        const { rowCount, rows } = await executeSQL(conn, insertSql, insertValues);
+        const coupleIdx = rows[0].idx;
 
-        if(rowCount==0){
+        if(rowCount === 0) {
             return next({
-                message : "커플 입력 실패",
-                status : 500
+                message: "커플 입력 실패",
+                status: 500
             });  
         }
-        // 토큰을 업데이트? -> 아니면 다시 로그인 ?
-        // 그 뒤에 커플 정보를 업데이트 하고 나서 다시 로그인하는 방식? 아니면 ... 토큰 재발급?
-        // 아니면 커플 정보까지 입력한 뒤에?
+        
+        // 커플 정보가 성공적으로 등록되면 토큰을 재발행하여 커플 정보를 추가
+        const newToken = regenerateToken(req.headers.authorization.split(' ')[1], coupleIdx);
+        
+        // 클라이언트에게 새로 발급된 토큰 전달
+        res.setHeader('Authorization', `Bearer ${newToken}`);
 
         result.success = true;
         result.message = `커플 정보 입력 성공.`;
-        result.data = { partnerIdx };
+        result.data = { partnerIdx, coupleIdx };
     
         res.send(result);
     
@@ -215,12 +153,9 @@ router.post('/couple/:partnerIdx', isLogin, checkPattern(nicknameReq, 'nickname'
     }
 });
 
-//-------------------------------------------------------------------------
 
 // 커플 정보 등록 api -> 커플 매칭 후!
-router.post('/couple/inform/:partnerIdx', isLogin, checkPattern(nicknameReq, 'nickname'), checkPattern(dateReq, 'date'), async (req, res, next) => {
-    const couplePartnerIdx = req.params.partnerIdx; 
-    // 파라미터 사용 명세서에는 없음. -> couple idx 조회해서 가져와야하는가? -> 토큰 재발행?
+router.post('/couple/inform', isLogin, isCouple, checkPattern(nicknameReq, 'nickname'), checkPattern(dateReq, 'date'), async (req, res, next) => {
     const { nickname, date } = req.body; 
     const result = {
         success: false,
@@ -279,7 +214,7 @@ router.post('/couple/inform/:partnerIdx', isLogin, checkPattern(nicknameReq, 'ni
 });
 
 // 커플 애칭 수정 api -> api명 뒤에 nickname 추가?
-router.put('/couple/inform', isLogin, checkPattern(nicknameReq, 'nickname'), async (req, res, next) => {
+router.put('/couple/inform', isLogin, isCouple, checkPattern(nicknameReq, 'nickname'), async (req, res, next) => {
     const coupleIdx = req.user.coupleIdx;
     const userIdx = req.user.idx
     const { nickname } = req.body;    
@@ -347,7 +282,7 @@ router.put('/couple/inform', isLogin, checkPattern(nicknameReq, 'nickname'), asy
 });
 
 // 커플 연애날짜 수정 api
-router.put('/couple/inform', isLogin, checkPattern(dateReq, 'date'), async (req, res, next) => {
+router.put('/couple/inform', isLogin, isCouple, checkPattern(dateReq, 'date'), async (req, res, next) => {
     const coupleIdx = req.user.coupleIdx; // 토큰에 coupleIdx 추가하기
     const userIdx = req.user.idx
     const { date } = req.body;    
@@ -417,7 +352,7 @@ router.put('/couple/inform', isLogin, checkPattern(dateReq, 'date'), async (req,
 });
 
 // 커플 이미지 수정 api => 희주가 만든 업로드 모델로 수정하기
-router.put('/couple', isLogin, upload.single("file"), checkPattern(imageReq, 'image'), async (req, res, next) => {
+router.put('/couple', isLogin, isCouple, upload.single("file"), checkPattern(imageReq, 'image'), async (req, res, next) => {
     const coupleIdx = req.user.coupleIdx; // 토큰에 coupleIdx 추가하기
     const userIdx = req.user.idx
     const { deleteImageUrl } = req.body;    
