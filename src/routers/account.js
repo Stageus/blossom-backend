@@ -6,7 +6,7 @@ const makeLog = require("../modules/makelog");
 const redis = require("redis").createClient();
 const { idReq,pwReq,nameReq,telReq,dateReq }= require("../config/patterns");
 
-// 로그인 API -> token 방식 대신 uuid 사용?
+// 로그인 API
 router.post('/account/login', checkPattern(idReq, 'id'), checkPattern(pwReq, 'pw'), async (req, res, next) => {
     const { id, pw } = req.body;
     const result = {
@@ -134,70 +134,8 @@ router.get("/account/find/id", checkPattern(nameReq,'name'), checkPattern( telRe
     }
 });
 
-// pw 찾기 API ==> 합친 버전
-router.put("/account/changePw",  checkPattern(nameReq,'name'), checkPattern( telReq,'tel'), checkPattern(idReq,'id'), checkPattern(pwReq,'pw'), async (req,res,next) => {
-    const { name, tel, id , pw} = req.body
-    const result = {
-        "success" : false, 
-        "message" : "",
-        "data" : null 
-    }
-
-    try{
-
-        const sql = `SELECT pw FROM account WHERE name = $1 AND tel = $2 AND id = $3`;
-        const values = [name, tel, id];
-
-        const { rows } = await executeSQL(conn, sql, values);
-
-        if (rows.length === 0) {
-            return next({
-                message : "일치하는 정보 없음",
-                status : 404
-            });                
-        }
-
-        const userIdx = rows.idx;
-       
-        const changePwQuery = {
-            text: `UPDATE account SET pw = $1, WHERE idx = $2;`,
-            values: [pw, userIdx],
-        };
-
-        const { rowCount } = await queryConnect(changePwQuery);
-
-        if (rowCount === 0) {
-            throw new Error("비밀번호 변경 실패");
-        }
-
-        result.success = true;
-        result.message = "비밀번호 변경 성공";
-
-        res.send(result);
-
-        const logData = {
-            ip: req.ip,
-            userId: id,
-            apiName: '/account/pw',
-            restMethod: 'put',
-            inputData: { name, tel, id, pw},
-            outputData: result,
-            time: new Date(),
-        };
-    
-        makeLog(req, res, logData, next);
-
-    } catch (error) {
-        result.message = error.message;
-        return next(error);
-    }
-});
-
-
-//------------- api 명세서대로 다시 작성한 버전 (비밀번호 확인, 변경)
-
 // pw 확인 부분
-router.get("/account/find/pw",  checkPattern(nameReq,'name'), checkPattern( telReq,'tel'), checkPattern(idReq,'id'), async (req,res,next) => {
+router.get("/account/find/pw", checkPattern(nameReq,'name'), checkPattern( telReq,'tel'), checkPattern(idReq,'id'), async (req,res,next) => {
     const { name, tel, id} = req.body
     const result = {
         "success" : false, 
@@ -242,9 +180,8 @@ router.get("/account/find/pw",  checkPattern(nameReq,'name'), checkPattern( telR
     }
 });
 // pw 변경 부분
-router.put("/account/pw",  checkPattern(pwReq,'pw'), checkPattern(pwReq,'newPw'), checkPattern(pwReq,'newPwCheck'), async (req,res,next) => {
-    const { userIdx, pw, newPw, newPwCheck } = req.body; //userIdx -> 따로 준다면 이렇게 주거나 아님 api 명에서 가져오거나!
-    //그런데 newPw, newPwCheck 가 필요한가요? 프엔에서 1차로 걸러지지 않을까?
+router.put("/account/pw", checkPattern(pwReq,'pw'), checkPattern(pwReq,'newPw'), checkPattern(pwReq,'newPwCheck'), async (req,res,next) => {
+    const { userIdx, pw, newPw, newPwCheck } = req.body; 
     const result = {
         "success" : false, 
         "message" : "",
@@ -267,8 +204,8 @@ router.put("/account/pw",  checkPattern(pwReq,'pw'), checkPattern(pwReq,'newPw')
 
         const { rowCount } = await queryConnect(changePwQuery);
 
-        if (rowCount === 0) { // throw new Error랑 return next 이렇게 두 가지 방법 말고 1개로 통일?
-            throw new Error("비밀번호 변경 실패"); // status 코드도 주고싶당..
+        if (rowCount === 0) { 
+            throw new Error("비밀번호 변경 실패");
         }
 
         result.success = true;
