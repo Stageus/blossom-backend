@@ -2,10 +2,11 @@ const router = require("express").Router();
 const isLogin = require('../middleware/isLogin');
 const conn = require("../config/postgresql");
 const makeLog = require("../modules/makelog");
-const isBlank = require("../middleware/isBlank")
+const isBlank = require("../middleware/isBlank");
+const isCouple = require("../middleware/isCouple");
 
 // 문답 전체 목록 불러오기 API
-router.get("/question/all", isLogin, async (req, res, next) => {
+router.get("/question/all", isLogin, isCouple, async (req, res, next) => {
     const coupleIdx = req.user.coupleIdx;
     const lastQuestionIdx = req.query.lastQuestionIdx || 0; // 마지막으로 로드된 질문의 인덱스
     const itemSize = 20; // 페이지당 항목 수
@@ -64,7 +65,7 @@ router.get("/question/all", isLogin, async (req, res, next) => {
 });
 
 // 특정 문답 불러오기 API
-router.get("/question/:idx", isLogin, async (req, res, next) => {
+router.get("/question/:idx", isLogin, isCouple, async (req, res, next) => {
     const questionIdx = req.params.questionIdx;
     const userIdx = req.user.idx;
     const coupleIdx = req.user.coupleIdx;
@@ -156,7 +157,7 @@ router.get("/question/:idx", isLogin, async (req, res, next) => {
 });
 
 // 문답 답변 쓰기 API
-router.post("question/:idx", isLogin, isBlank('content'), async (req, res, next) => {
+router.post("question/:idx", isLogin, isCouple, isBlank('content'), async (req, res, next) => {
     const userIdx = req.user.idx;
     const coupleIdx = req.user.coupleIdx;
     const questionIdx = req.params.questionIdx;

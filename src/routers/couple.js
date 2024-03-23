@@ -8,10 +8,12 @@ const upload = require("../config/multer");
 const s3 = require("../config/s3");
 const regenerateToken = require("../modules/regenerateToken");
 const {nicknameReq,imageReq,dateReq }= require("../config/patterns");
+const isLogin = require("../middleware/isLogin");
+const isCouple = require("../middleware/isCouple");
 
 // 커플 정보 불러오기 api
-router.get('/couple/inform', isLogin, isCouple, async (req, res, next) => { //idx 로 불러오는 방식에서 명세서대로 변경
-    const coupleIdx = req.user.coupleIdx; // 토큰에 coupleIdx 추가하기
+router.get('/couple/inform', isLogin, isCouple, async (req, res, next) => { 
+    const coupleIdx = req.user.coupleIdx;
     const userIdx = req.user.idx
     const result = {
         success: false,
@@ -162,55 +164,65 @@ router.post('/couple/inform', isLogin, isCouple, checkPattern(nicknameReq, 'nick
         message: '커플 정보 등록 실패',
         data: null
     };
-    try{
+    try {
+        // 트랜잭션 시작
+        await conn.query('BEGIN');
+
         const selectPartnerQuery = `SELECT COALESCE(NULLIF(couple1_idx, $1), couple2_idx) AS partner_idx
                                     FROM couple WHERE couple1_idx = $1 OR couple2_idx = $1 RETURNING partner_idx `;
         const selectValues = [userIdx];
 
         const { rows } = await executeSQL(conn, selectPartnerQuery, selectValues);
 
-        if(rows == 0) {
+        if (rows == 0) {
+            // 롤백 후 에러 처리
+            await conn.query('ROLLBACK');
             return next({
-                message : "커플 상대방 조회 오류",
-                status : 404
+                message: "커플 상대방 조회 오류",
+                status: 404
             })
         }
 
         const couplePartnerIdx = rows[0].partner_idx;
 
-        const updateAccountQuery =`UPDATE account SET nickname = $1 WHERE idx = $2;`;
+        const updateAccountQuery = `UPDATE account SET nickname = $1 WHERE idx = $2;`;
         const updateValues = [nickname, couplePartnerIdx];
 
         const { rowCount } = await executeSQL(conn, updateAccountQuery, updateValues);
 
         if (rowCount == 0) {
+            // 롤백 후 에러 처리
+            await conn.query('ROLLBACK');
             return next({
-                message : "커플 애칭 입력 실패",
-                status : 500
-            });  
+                message: "커플 애칭 입력 실패",
+                status: 500
+            });
         }
-        
-        //account idx 대신 coupleIdx를 사용? -> 토큰 coupleIdx 추가해서 재발급 해야함.
-        const updateCoupleQuery =`UPDATE couple SET start_date = $1 WHERE couple1_idx = $2 OR couple2_idx = $2;`;
+
+        const updateCoupleQuery = `UPDATE couple SET start_date = $1 WHERE couple1_idx = $2 OR couple2_idx = $2;`;
         const updateCoupleValues = [date, couplePartnerIdx];
 
-        const queryResult = await executeSQL(conn, updateAccountQuery, updateCoupleValues);
+        const queryResult = await executeSQL(conn, updateCoupleQuery, updateCoupleValues);
 
-        await queryConnect(updateCoupleQuery);
         const updateResult = queryResult.rowCount;
-    
-        if(updateResult==0){
+
+        if (updateResult == 0) {
+            // 롤백 후 에러 처리
+            await conn.query('ROLLBACK');
             return next({
-                message : "커플 날짜 입력 실패",
-                status : 500
-            });  
+                message: "커플 날짜 입력 실패",
+                status: 500
+            });
         }
-    
+
+        // 트랜잭션 커밋
+        await conn.query('COMMIT');
+
         result.success = true;
         result.message = `커플 날짜 입력 성공.`;
-        
+
         res.send(result);
-    
+
         const logData = {
             ip: req.ip,
             userId: id,
@@ -220,13 +232,19 @@ router.post('/couple/inform', isLogin, isCouple, checkPattern(nicknameReq, 'nick
             outputData: result,
             time: new Date(),
         };
-    
+
         makeLog(req, res, logData, next);
     } catch (error) {
+        // 에러 발생 시 롤백 후 에러 처리
+        await conn.query('ROLLBACK');
         result.error = error;
         return next(error);
+    } finally {
+        // 커넥션 반환
+        await conn.release();
     }
 });
+
 
 // 커플 애칭 수정 api -> api명 뒤에 nickname 추가?, 트랜잭션 적용하기
 router.put('/couple/inform', isLogin, isCouple, checkPattern(nicknameReq, 'nickname'), async (req, res, next) => {
@@ -239,46 +257,54 @@ router.put('/couple/inform', isLogin, isCouple, checkPattern(nicknameReq, 'nickn
         data: null
     };
 
-    try{
-        const query =`SELECT couple1_idx, couple2_idx FROM couple WHERE idx = $1 AND account_idx = $2;`;
+    try {
+        // 트랜잭션 시작
+        await conn.query('BEGIN');
+
+        const query = `SELECT couple1_idx, couple2_idx FROM couple WHERE idx = $1 AND account_idx = $2;`;
         const values = [coupleIdx, userIdx];
 
         const { rows } = await executeSQL(conn, query, values);
-    
+
         if (rows.length == 0) {
+            await conn.query('ROLLBACK');
             return next({
                 message : "일치하는 정보 없음",
                 status : 404
             });  
         }
-    
+
         const couple1_idx = rows[0].couple1_idx;
         const couple2_idx = rows[0].couple2_idx;
-    
+
         let couplePartnerIdx;
-        if(couple1_idx!=userIdx){
-            couplePartnerIdx=couple1_idx;
-        } 
-        else{
-            couplePartnerIdx=couple2_idx;
+        if (couple1_idx != userIdx) {
+            couplePartnerIdx = couple1_idx;
+        } else {
+            couplePartnerIdx = couple2_idx;
         }
+
         const updateCoupleQuery = `UPDATE account SET nickname = $1 WHERE idx = $2`;
         const updateCoupleValues = [nickname, couplePartnerIdx];
 
         const queryResult = await executeSQL(conn, updateCoupleQuery, updateCoupleValues);
         const updateResult = queryResult.rowCount;
-    
-        if(updateResult==0){
+
+        if (updateResult == 0) {
+            await conn.query('ROLLBACK');
             return next({
                 message : "상대 닉네임 수정 실패",
                 status : 500
             });  
         }
-    
+
+        // 트랜잭션 커밋
+        await conn.query('COMMIT');
+
         result.success = true;
-        result.message = `상대 닉네임 수정 실패.`;
+        result.message = `상대 닉네임 수정 성공.`;
         res.send(result);
-    
+
         const logData = {
             ip: req.ip,
             userId: id,
@@ -288,9 +314,11 @@ router.put('/couple/inform', isLogin, isCouple, checkPattern(nicknameReq, 'nickn
             outputData: result,
             time: new Date(),
         };
-    
+
         makeLog(req, res, logData, next);
     } catch (error) {
+        // 에러 발생 시 롤백 후 에러 처리
+        await conn.query('ROLLBACK');
         result.error = error;
         return next(error);
     }
@@ -308,12 +336,15 @@ router.put('/couple/inform', isLogin, isCouple, checkPattern(dateReq, 'date'), a
     };
 
     try{
+        await conn.query('BEGIN');
+
         const query = `SELECT couple1_idx, couple2_idx FROM couple WHERE idx = $1 AND account_idx = $2;`;
         const values = [coupleIdx, userIdx];
 
         const { rows } = await executeSQL(conn, query, values);
     
         if (rows.length == 0) {
+            await conn.query('ROLLBACK');
             return next({
                 message : "일치하는 정보 없음",
                 status : 404
@@ -338,11 +369,15 @@ router.put('/couple/inform', isLogin, isCouple, checkPattern(dateReq, 'date'), a
         const updateResult = queryResult.rowCount;
     
         if(updateResult==0){
+            await conn.query('ROLLBACK');
             return next({
                 message : "연애 날짜 수정 실패",
                 status : 500
             });  
         }
+
+        // 트랜잭션 커밋
+        await conn.query('COMMIT');
     
         result.success = true;
         result.message = `연애 날짜 수정 성공.`;
@@ -354,16 +389,16 @@ router.put('/couple/inform', isLogin, isCouple, checkPattern(dateReq, 'date'), a
             userId: id,
             apiName: '/couple/inform',
             restMethod: 'put',
-            inputData: { nickname },
+            inputData: { date },
             outputData: result,
             time: new Date(),
         };
     
         makeLog(req, res, logData, next);
     } catch (error) {
+        await conn.query('ROLLBACK');
         result.error = error;
         return next(error);
-    }
 });
 
 // 커플 이미지 수정 api => 희주가 만든 업로드 모델로 수정하기, 트랜잭션 적용하기
@@ -378,6 +413,8 @@ router.put('/couple', isLogin, isCouple, upload.single("file"), checkPattern(ima
     };
 
     try{
+        await conn.query('BEGIN');
+
         if (deleteImageUrl) {
             // deleteImageUrl에서 추가 문자를 제거.
             const cleanedDeleteImageUrl = deleteImageUrl.trim();
@@ -389,6 +426,7 @@ router.put('/couple', isLogin, isCouple, upload.single("file"), checkPattern(ima
             const deleteResult =  await executeSQL(conn, deleteImageQuery, deleteImagevalues);
     
             if(deleteResult==0){
+                await conn.query('ROLLBACK');
                 return next({
                     message : "커플 이미지 삭제 실패",
                     status : 500
@@ -416,12 +454,14 @@ router.put('/couple', isLogin, isCouple, upload.single("file"), checkPattern(ima
             const {rowCount} = await executeSQL(conn, query, values);
 
             if(rowCount==0){
+                await conn.query('ROLLBACK');
                 return next({
                     message : "커플 이미지 수정 실패",
                     status : 500
                 });  
             }
         }
+        await conn.query('COMMIT');
     
         result.success = true;
         result.message = `커플 이미지 수정 성공.`;
@@ -440,6 +480,7 @@ router.put('/couple', isLogin, isCouple, upload.single("file"), checkPattern(ima
     
         makeLog(req, res, logData, next);
     } catch (error) {
+        await conn.query('ROLLBACK');
         result.error = error;
         return next(error);
     }
