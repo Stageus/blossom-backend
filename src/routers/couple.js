@@ -399,6 +399,7 @@ router.put('/couple/inform', isLogin, isCouple, checkPattern(dateReq, 'date'), a
         await conn.query('ROLLBACK');
         result.error = error;
         return next(error);
+    }
 });
 
 // 커플 이미지 수정 api => 희주가 만든 업로드 모델로 수정하기, 트랜잭션 적용하기
