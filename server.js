@@ -1,6 +1,7 @@
 //==========package============
 const express = require("express");
 const redis = require("redis").createClient();
+const makeLog = require('./src/modules/makelog');
 //======Init========
 const app = express()
 const port = 8000
