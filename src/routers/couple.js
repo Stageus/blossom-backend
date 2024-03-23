@@ -153,8 +153,7 @@ router.post('/couple/:partnerIdx', isLogin, checkPattern(nicknameReq, 'nickname'
     }
 });
 
-
-// 커플 정보 등록 api -> 커플 매칭 후!
+// 커플 정보 등록 api -> 커플 매칭 후!, 트랜잭션 적용하기
 router.post('/couple/inform', isLogin, isCouple, checkPattern(nicknameReq, 'nickname'), checkPattern(dateReq, 'date'), async (req, res, next) => {
     const { nickname, date } = req.body;
     const userIdx = req.user.idx;
@@ -229,7 +228,7 @@ router.post('/couple/inform', isLogin, isCouple, checkPattern(nicknameReq, 'nick
     }
 });
 
-// 커플 애칭 수정 api -> api명 뒤에 nickname 추가?
+// 커플 애칭 수정 api -> api명 뒤에 nickname 추가?, 트랜잭션 적용하기
 router.put('/couple/inform', isLogin, isCouple, checkPattern(nicknameReq, 'nickname'), async (req, res, next) => {
     const coupleIdx = req.user.coupleIdx;
     const userIdx = req.user.idx
@@ -297,7 +296,7 @@ router.put('/couple/inform', isLogin, isCouple, checkPattern(nicknameReq, 'nickn
     }
 });
 
-// 커플 연애날짜 수정 api
+// 커플 연애날짜 수정 api, 트랜잭션 적용하기
 router.put('/couple/inform', isLogin, isCouple, checkPattern(dateReq, 'date'), async (req, res, next) => {
     const coupleIdx = req.user.coupleIdx; // 토큰에 coupleIdx 추가하기
     const userIdx = req.user.idx
@@ -367,7 +366,7 @@ router.put('/couple/inform', isLogin, isCouple, checkPattern(dateReq, 'date'), a
     }
 });
 
-// 커플 이미지 수정 api => 희주가 만든 업로드 모델로 수정하기
+// 커플 이미지 수정 api => 희주가 만든 업로드 모델로 수정하기, 트랜잭션 적용하기
 router.put('/couple', isLogin, isCouple, upload.single("file"), checkPattern(imageReq, 'image'), async (req, res, next) => {
     const coupleIdx = req.user.coupleIdx; // 토큰에 coupleIdx 추가하기
     const userIdx = req.user.idx
