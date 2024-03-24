@@ -124,7 +124,7 @@ router.put("/:idx", isLogin, checkPattern(feedReq, "content"), async(req, res, n
         const sql = `UPDATE feed SET content = $1 AND image_url = $2 WHERE idx = $3 AND couple_idx = $4`
         const values = [content, feedIdx, coupleIdx]
         
-        const dbResult = await executeSQL(conn, sql, values)
+        await executeSQL(conn, sql, values)
         // 1. 이미지추가만
         // 2. 이미지추가, 글 수정 (content=modify newPic=add delPic=x)
         // 3. 이미지 수정만 (content=x newPic=modify delPic=modify)
@@ -133,13 +133,6 @@ router.put("/:idx", isLogin, checkPattern(feedReq, "content"), async(req, res, n
         // 이미지 삭제도 있나? 
         // 5. 이미지 삭제만 (content=x newPic=x delPic=delete) 
         // 6. 이미지 삭제, 글 수정 (content=modify newPic=x delPic=delete)
-        
-        // 수정 실패시
-        if(dbResult.rowCount == 0){
-            const error = new Error("수정 권한이 없거나 해당 피드가 존재하지 않습니다.");
-            error.status = 404; // 404랑 403이랑 어떻게 나눔?
-            return next(error);
-        }
 
         // 수정 성공시
         result.success = true;
@@ -162,16 +155,10 @@ router.delete("/:idx", isLogin,  async(req, res, next) => {
     };
 
     try{
-        const sql = "UPDATE feed SET is_delete = true WHERE idx = $1 AND couple_idx = $2";
+        // const sql = "UPDATE feed SET is_delete = true WHERE idx = $1 AND couple_idx = $2";
+        const sql = "DELETE FROM feed WHERE idx = $1 AND couple_idx = $2"
         const values = [feedIdx, coupleIdx];
-        const dbResult = await executeSQL(conn, sql, values);
-
-         // 피드 soft delete 실패시
-         if(dbResult.rowCount == 0){
-            const error = new Error("삭제 권한이 없거나 해당 피드가 존재하지 않습니다.");
-            error.status = 404; // 404랑 403이랑 어떻게 나눔?
-            return next(error);
-        }
+        await executeSQL(conn, sql, values);
 
         // 피드 soft delete 성공시
         result.success = true;
