@@ -486,3 +486,5 @@ router.put('/couple', isLogin, isCouple, upload.single("file"), checkPattern(ima
         return next(error);
     }
 });
+
+module.exports = router;
