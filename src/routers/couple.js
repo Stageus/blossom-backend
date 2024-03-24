@@ -3,7 +3,6 @@ const jwt = require('jsonwebtoken');
 const checkPattern = require("../middleware/checkPattern");
 const makeLog = require("../modules/makelog");
 const conn = require("../config/postgresql");
-const redis = require("redis").createClient();
 const upload = require("../config/multer");
 const s3 = require("../config/s3");
 const regenerateToken = require("../modules/regenerateToken");
@@ -486,3 +485,5 @@ router.put('/couple', isLogin, isCouple, upload.single("file"), checkPattern(ima
         return next(error);
     }
 });
+
+module.exports = router;
