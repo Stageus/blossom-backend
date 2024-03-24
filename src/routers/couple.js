@@ -3,7 +3,7 @@ const jwt = require('jsonwebtoken');
 const checkPattern = require("../middleware/checkPattern");
 const makeLog = require("../modules/makelog");
 const conn = require("../config/postgresql");
-const upload = require("../config/multer");
+const upload = require("../modules/uploadImage");
 const s3 = require("../config/s3");
 const regenerateToken = require("../modules/regenerateToken");
 const {nicknameReq,imageReq,dateReq }= require("../config/patterns");
@@ -401,11 +401,11 @@ router.put('/couple/inform', isLogin, isCouple, checkPattern(dateReq, 'date'), a
     }
 });
 
-// 커플 이미지 수정 api => 희주가 만든 업로드 모델로 수정하기, 트랜잭션 적용하기
-router.put('/couple', isLogin, isCouple, upload.single("file"), checkPattern(imageReq, 'image'), async (req, res, next) => {
+// 커플 이미지 수정 api
+router.put('/couple', isLogin, isCouple, checkPattern(imageReq, 'image'), async (req, res, next) => {
     const coupleIdx = req.user.coupleIdx; // 토큰에 coupleIdx 추가하기
     const userIdx = req.user.idx
-    const { deleteImageUrl } = req.body;    
+    const { deleteImageUrl, file } = req.body;    
     const result = {
         success: false,
         message: '커플 이미지 수정 실패',
