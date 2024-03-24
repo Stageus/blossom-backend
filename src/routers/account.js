@@ -34,7 +34,6 @@ router.post('/account/login', checkPattern(idReq, 'id'), checkPattern(pwReq, 'pw
         const queryResult = await executeSQL(conn, coupleSql, coupleValues);
         const coupleIdx = queryResult.rows[0].idx;
 
-        //커플 연결 유무 확인 -> 미들웨어로 뺄지말지?
         if (coupleIdx == null || undefined || 0){
             return next({
                 message : "커플 연결 되어있지 않음, 커플 연결 해야함",
@@ -81,8 +80,6 @@ router.post('/account/login', checkPattern(idReq, 'id'), checkPattern(pwReq, 'pw
         result.error = error;
         return res.status(500).send(result);
 
-    } finally {
-        await redis.disconnect();
     }
 });
 
