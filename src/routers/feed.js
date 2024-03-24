@@ -2,7 +2,7 @@ const router = require("express").Router();
 const jwt = require("jsonwebtoken");
 const checkPattern = require("../middleware/checkPattern");
 const isBlank = require("../middleware/isBlank");
-const islogin = require("../middleware/isLogin");
+const isLogin = require("../middleware/isLogin");
 const { idReq,pwReq,nameReq,nicknameReq,imageReq,telReq,dateReq,feedReq } = require("../config/patterns");
 const { s3 } = require("../config/s3")
 
