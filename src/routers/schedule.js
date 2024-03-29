@@ -1,24 +1,14 @@
-//==========package============
-// const express = require("express");
-// const app = express()
-// const port = 8000
-
-// app.use(express.json()) 
-
-// require('dotenv').config()
-
-////////////////////////////
 const router = require("express").Router()
 const jwt = require("jsonwebtoken")
 const checkPattern = require("../middleware/checkPattern");
 const isBlank = require("../middleware/isBlank");
 const { executeSQL } = require("../modules/sql");
 const isLogin = require("../middleware/isLogin");
+const { isMycouple } = require("../modules/isMycouple");
 
 const { idReq,pwReq,nameReq,nicknameReq,imageReq,telReq,dateReq,timestampReq,scheduleReq}= require("../config/patterns");
 
 const conn = require("../config/postgresql");
-
 
 // 1.get schedule/all 특정 월의 전체 일정 불러오기
 // date 형식 어떻게 받을지에 따라 isBlank 혹은 다른 미들웨어 써야할듯
@@ -116,11 +106,12 @@ router.get("/", checkPattern(dateReq, "date"), async(req, res, next) => {
     }
 })
 
-// 3.post schedule 일정 추가하기 checkPattern -> dateReq 말고 추가해야함
+// 3.post schedule 일정 추가하기
+// TODO : coupleIdx, accountIdx는 islogin 미들웨어 넣어서 req.user에서 가져오도록 바꿔야함
 router.post("/", checkPattern(scheduleReq, "content"), checkPattern(timestampReq, "date"), async(req,res,next) => {
     // const { coupleIdx, accountIdx } = req.user; // isLogin에서 token해석해서 전달
-    const { coupleIdx } = 1; // test용
-    const { accountIdx } = 1; // test용
+    const { coupleIdx } = req.body; // test용
+    const { accountIdx } = req.body; // test용
     const { content, date } = req.body; // date:YYYY-MM-DDT00:00:00 (timestamp형)
 
     const result = {
@@ -145,12 +136,13 @@ router.post("/", checkPattern(scheduleReq, "content"), checkPattern(timestampReq
     }
 })
 
-// 4. put feed/:idx 특정 일정 수정하기 -> checkPattern(dateReq, "date") timestamp형 정규식 따로 만들어야함
-router.put("/:idx", checkPattern(scheduleReq, "content"), checkPattern(dateReq, "date"), async(req, res, next) => {
+// 4. put feed/:idx 특정 일정 수정하기
+// TODO : coupleIdx는 islogin 미들웨어 넣어서 req.user에서 가져오도록 바꿔야함
+router.put("/:idx", checkPattern(scheduleReq, "content"), checkPattern(timestampReq, "date"), async(req, res, next) => {
     // const { coupleIdx } = req.user;
-    const { coupleIdx } = 1; // test용
-    const { content, date } = req.body; // date = 년월일시분(timestamp)
-    const scheduleIdx = req.params.idx;
+    const { coupleIdx } = req.body; // test용
+    const { content, date } = req.body;
+    const scheduleIdx = req.params.idx; // 일정의 idx
 
     const result = {
         success : false,
@@ -158,6 +150,8 @@ router.put("/:idx", checkPattern(scheduleReq, "content"), checkPattern(dateReq, 
     };
 
     try{
+        await isMycouple(coupleIdx, scheduleIdx);
+
         const sql = `UPDATE schedule SET content = $1, date = $2 WHERE idx = $3 AND couple_idx = $4`
         const values = [content, date, scheduleIdx, coupleIdx]
         
@@ -174,9 +168,10 @@ router.put("/:idx", checkPattern(scheduleReq, "content"), checkPattern(dateReq, 
 })
 
 // 5.delete schedule/:idx 특정 일정 삭제하기
+// TODO : coupleIdx는 islogin 미들웨어 넣어서 req.user에서 가져오도록 바꿔야함
 router.delete("/:idx", async(req, res, next) => {
     // const { coupleIdx }  = req.user;
-    const { coupleIdx } = 1; // test용
+    const { coupleIdx } = req.body; // test용
     const scheduleIdx = req.params.idx;
 
     const result = {
@@ -185,6 +180,7 @@ router.delete("/:idx", async(req, res, next) => {
     };
 
     try{
+        await isMycouple(coupleIdx, scheduleIdx);
         // const sql = "UPDATE schedule SET is_delete = true WHERE idx = $1 AND couple_idx = $2"
         const sql = "DELETE FROM schedule WHERE idx = $1 AND couple_idx = $2"
         const values = [scheduleIdx, coupleIdx]
@@ -192,17 +188,10 @@ router.delete("/:idx", async(req, res, next) => {
 
         // 일정 soft delete 성공시
         result.success = true;
-        result.message = `idx가 ${feedIdx}인 feed soft delete 성공`
+        result.message = `idx가 ${scheduleIdx}인 feed soft delete 성공`
     }catch(e){
         next(e);
     }
 })
 
 module.exports = router
-
-/////////////////////////////
-// app.use("/",router);
-// //
-// app.listen(port, () => {
-//     console.log(`${port}번에서 HTTP 웹서버 실행`);
-// });
