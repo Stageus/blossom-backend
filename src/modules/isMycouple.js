@@ -1,18 +1,16 @@
+const { waitForBucketNotExists } = require("@aws-sdk/client-s3");
 const conn = require("../config/postgresql")
-const { executeSQL } = require("./sql")
+const {executeSQL} = require("./sql")
 
-const isMycouple = async(req, res, next) =>{
+async function isMycouple(coupleIdx, scheduleIdx) {
     try {
-        let coupleIdx = req.body[coupleIdx];
-        let contentIdx = req.params[idx];
-
         const sql = "SELECT couple_idx FROM schedule WHERE idx = $1 AND is_delete = false";
-        const values = [contentIdx];
+        const values = [scheduleIdx];
 
         const dbResult = await executeSQL(conn, sql, values);
 
         if(dbResult.length == 0){
-            const error = new Error(`${contentIdx}번째 컨텐츠가 존재하지 않습니다.`)
+            const error = new Error(`${scheduleIdx}번째 컨텐츠가 존재하지 않습니다.`)
             error.status = 404;
             throw error;
         }
@@ -23,9 +21,9 @@ const isMycouple = async(req, res, next) =>{
             throw error;
         }
         
-        next();
+        return;
     } catch (error) {
-        next(error);
+        throw error;
     }
 }
 
