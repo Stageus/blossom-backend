@@ -6,34 +6,55 @@ const isLogin = require("../middleware/isLogin");
 const { idReq, pwReq, nameReq, nicknameReq, imageReq, telReq, dateReq, feedReq } = require("../config/patterns");
 const { s3 } = require("../config/s3");
 const { uploadImage } = require("../modules/uploadImage");
+const { executeSQL } = require("../modules/sql");
+const { isMycouple } = require("../modules/isMycouple");
 
 const conn = require("../config/postgresql");
 
-// feed table의 date = date type (YYYY-MM-DD)
-
 // test용
-router.post("/test", uploadImage("image"), async(req,res,next) => {
+router.post("/test", async (req, res, next) => {
     const result = {
         success: false,
         message: "",
         data: null
-    }
-    try{
-        const {coupltIdx, accountIdx} = req.body;
-        const image = req.file;
+    };
+
+    const {coupleIdx, accountIdx} = req.body;
+    const {content, date} = req.body;
+    let image;
+
+    try {
+        // 업로드된 파일을 처리하기 위해 uploadImage 함수 직접 호출
+        const upload = uploadImage("image");
+        // uploadImage 함수에서 반환된 미들웨어를 사용하여 파일 업로드 처리
+        upload(req, res, err => {
+            if (err) {
+                // 업로드 중 에러 발생 시 처리
+                next(err);
+            }
+            // 업로드된 파일에 접근하여 처리
+            image = req.file;
+        });
+
+        const sql = `INSERT INTO feed (couple_idx, account_idx, content, date, image_url)
+        VALUES ($1, $2, $3, $4, $5)`;
+        const values = [coupleIdx, accountIdx, content, date, image];
+
+        await executeSQL(conn, sql, values);
 
         result.data = image;
-        result.message = "test"
+        result.message = "test";
         res.status(200).send(result);
-    }
-    catch(e){
+    } catch (e) {
         next(e);
     }
-})
+});
 
 // 1. get feed/all 피드 전체 불러오기
-router.get("all", isLogin, async (req, rex, next) => {
-    const { coupleIdx } = req.user;
+// TODO : islogin 추가 -> coupleIdx : req.user에서 받게
+router.get("/all", async (req, res, next) => {
+    // const { coupleIdx } = req.user;
+    const { coupleIdx } = req.body;
 
     const result = {
         success: false,
@@ -60,8 +81,10 @@ router.get("all", isLogin, async (req, rex, next) => {
 })
 
 // 2. get feed/search 날짜로 검색한 피드 불러오기
-router.get("/search", isLogin, checkPattern(dateReq, "date"), async (req, res, next) => {
-    const { coupleIdx } = req.user;
+// TODO : islogin 추가 -> coupleIdx : req.user에서 받게
+router.get("/search", checkPattern(dateReq, "date"), async (req, res, next) => {
+    // const { coupleIdx } = req.user;
+    const { coupleIdx } = req.body;
     const { date } = req.body; // YYYY-MM-DD (postgresql table의 date는 timestamp지만 비교가능)
 
     const result = {
@@ -92,16 +115,13 @@ router.get("/search", isLogin, checkPattern(dateReq, "date"), async (req, res, n
 })
 
 // 3. post feed 피드 작성하기
-router.post("/", isLogin, isBlank("content"), checkPattern(dateReq, "date"), async (req, res, next) => {
+// TODO : islogin 추가 -> coupleIdx, accountIdx : req.user에서 받게
+// TODO : uploagImage 수정
+router.post("/", uploadImage("image"), checkPattern(feedReq, "content"), checkPattern(dateReq, "date"), async (req, res, next) => {
     // const { coupleIdx, accountIdx } = req.user; // isLogin에서 token해석해서 전달
-    const {coupltIdx, accountIdx} = req.body;
+    const { coupleIdx, accountIdx } = req.body;
     const { content, date } = req.body;
-
-    // 이미지(0~1장) -> 이미지가 있을 경우에만 업로드 함수 실행
-    let image;
-    if (req.files && req.files.image) {
-        image = uploadImage("image");
-    }
+    const image = req.file;
 
     const result = {
         success: false,
@@ -126,6 +146,7 @@ router.post("/", isLogin, isBlank("content"), checkPattern(dateReq, "date"), asy
 })
 
 // 4. put feed/:idx 특정 피드 수정하기
+// TODO : 뜯어고치기..
 router.put("/:idx", isLogin, checkPattern(feedReq, "content"), async (req, res, next) => {
     const { coupleIdx } = req.user; //--> isLogin에서 토큰 확인후 couple_idx와 account_idx 줘야함
     const { content, fileFlag } = req.body; // fileFlag = 0 -> 기존꺼(text경로) / 1 -> 새로운거(file이니까 처리 필요)
@@ -166,8 +187,10 @@ router.put("/:idx", isLogin, checkPattern(feedReq, "content"), async (req, res, 
 })
 
 // 5. delete feed/:idx 특정 피드 삭제하기
-router.delete("/:idx", isLogin, async (req, res, next) => {
-    const { coupleIdx } = req.user;
+// TODO : islogin 추가 -> coupleIdx : req.user에서 받게 
+router.delete("/:idx", async (req, res, next) => {
+    // const { coupleIdx } = req.user;
+    const {coupleIdx} = req.body;
     const feedIdx = req.params.idx;
 
     const result = {
@@ -176,6 +199,8 @@ router.delete("/:idx", isLogin, async (req, res, next) => {
     };
 
     try {
+        await isMycouple(coupleIdx, feedIdx, "feed");
+
         // const sql = "UPDATE feed SET is_delete = true WHERE idx = $1 AND couple_idx = $2";
         const sql = "DELETE FROM feed WHERE idx = $1 AND couple_idx = $2"
         const values = [feedIdx, coupleIdx];
@@ -184,6 +209,8 @@ router.delete("/:idx", isLogin, async (req, res, next) => {
         // 피드 soft delete 성공시
         result.success = true;
         result.message = `idx가 ${feedIdx}인 feed soft delete 성공`;
+
+        res.status(200).send(result);
     } catch (e) {
         next(e);
     }
