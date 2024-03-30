@@ -1,6 +1,5 @@
 //==========package============
 const express = require("express");
-const redis = require("redis").createClient();
 const makeLog = require('./src/modules/makelog');
 //======Init========
 const app = express()
@@ -28,20 +27,26 @@ app.use("/question", questionApi)
 const scheduleApi = require("./src/routers/schedule") // 희주
 app.use("/schedule", scheduleApi)
 
-app.use(async (err, req, res, next) => { // 오류 처리 쓰레기통 + 로깅
+// 공통 로깅 함수
+async function logError(req, res, err) {
     const logData = {
         timestamp: new Date(),
         message: err.message || '서버 오류',
         status: err.status || 500,
     };
 
-    await makeLog(req, res, logData, next);
+    await makeLog(req, res, logData);
     
     res.status(err.status || 500).send({
         success: false,
         message: err.message || '서버 오류',
         data: null,
     });
+}
+
+// 오류 처리 미들웨어
+app.use(async (err, req, res, next) => {
+    await logError(req, res, err);
 });
 
 //======Web Server======

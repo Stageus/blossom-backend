@@ -1,12 +1,13 @@
 const router = require("express").Router();
 const isLogin = require('../middleware/isLogin');
 const conn = require("../config/postgresql");
-const makeLog = require("../modules/makelog");
 const isBlank = require("../middleware/isBlank");
 const isCouple = require("../middleware/isCouple");
+const logRequest = require('../middleware/logger');
+const generateToken = require("../modules/generateToken");
 
 // 문답 전체 목록 불러오기 API
-router.get("/question/all", isLogin, isCouple, async (req, res, next) => {
+router.get("/all", isLogin, isCouple, logRequest, async (req, res, next) => {
     const coupleIdx = req.user.coupleIdx;
     const lastQuestionIdx = req.query.lastQuestionIdx || 0; // 마지막으로 로드된 질문의 인덱스
     const itemSize = 20; // 페이지당 항목 수
@@ -45,18 +46,6 @@ router.get("/question/all", isLogin, isCouple, async (req, res, next) => {
         result.message = "질문 목록 불러오기 성공";    
         res.send(result);
 
-        const logData = {
-            ip: req.ip,
-            userId: id,
-            apiName: '/question/all',
-            restMethod: 'get',
-            inputData: { },
-            outputData: result,
-            time: new Date(),
-        };
-    
-        makeLog(req, res, logData, next);
-
     } catch (error) {
         console.error('질문 목록 불러오기 오류: ', error);
         result.message = "질문 목록 불러오기 실패";
@@ -65,7 +54,7 @@ router.get("/question/all", isLogin, isCouple, async (req, res, next) => {
 });
 
 // 특정 문답 불러오기 API
-router.get("/question/:idx", isLogin, isCouple, async (req, res, next) => {
+router.get("/:idx", isLogin, isCouple, logRequest, async (req, res, next) => {
     const questionIdx = req.params.questionIdx;
     const userIdx = req.user.idx;
     const coupleIdx = req.user.coupleIdx;
@@ -138,17 +127,6 @@ router.get("/question/:idx", isLogin, isCouple, async (req, res, next) => {
         
         res.send(result);
 
-        const logData = {
-            ip: req.ip,
-            userId: id,
-            apiName: '/question/:idx',
-            restMethod: 'get',
-            inputData: {  },
-            outputData: result,
-            time: new Date(),
-        };
-    
-        makeLog(req, res, logData, next);
     } catch (error) {
         console.error('답변 가져오기 오류 발생: ', error.message);
         result.message = error.message;
@@ -157,7 +135,7 @@ router.get("/question/:idx", isLogin, isCouple, async (req, res, next) => {
 });
 
 // 문답 답변 쓰기 API
-router.post("question/:idx", isLogin, isCouple, isBlank('content'), async (req, res, next) => {
+router.post("/:idx", isLogin, isCouple, isBlank('content'), logRequest, async (req, res, next) => {
     const userIdx = req.user.idx;
     const coupleIdx = req.user.coupleIdx;
     const questionIdx = req.params.questionIdx;
@@ -183,18 +161,6 @@ router.post("question/:idx", isLogin, isCouple, isBlank('content'), async (req, 
         result.message = "답변 등록 성공";
 
         res.send(result);
-
-        const logData = {
-            ip: req.ip,
-            userId: id,
-            apiName: '/question/:idx',
-            restMethod: 'post',
-            inputData: { content },
-            outputData: result,
-            time: new Date(),
-        };
-    
-        makeLog(req, res, logData, next);
 
     } catch (e) {
         result.message = e.message;
