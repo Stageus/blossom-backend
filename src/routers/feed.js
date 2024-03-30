@@ -4,11 +4,32 @@ const checkPattern = require("../middleware/checkPattern");
 const isBlank = require("../middleware/isBlank");
 const isLogin = require("../middleware/isLogin");
 const { idReq, pwReq, nameReq, nicknameReq, imageReq, telReq, dateReq, feedReq } = require("../config/patterns");
-const { s3 } = require("../config/s3")
+const { s3 } = require("../config/s3");
+const { uploadImage } = require("../modules/uploadImage");
 
 const conn = require("../config/postgresql");
 
 // feed table의 date = date type (YYYY-MM-DD)
+
+// test용
+router.post("/test", uploadImage("image"), async(req,res,next) => {
+    const result = {
+        success: false,
+        message: "",
+        data: null
+    }
+    try{
+        const {coupltIdx, accountIdx} = req.body;
+        const image = req.file;
+
+        result.data = image;
+        result.message = "test"
+        res.status(200).send(result);
+    }
+    catch(e){
+        next(e);
+    }
+})
 
 // 1. get feed/all 피드 전체 불러오기
 router.get("all", isLogin, async (req, rex, next) => {
@@ -72,8 +93,8 @@ router.get("/search", isLogin, checkPattern(dateReq, "date"), async (req, res, n
 
 // 3. post feed 피드 작성하기
 router.post("/", isLogin, isBlank("content"), checkPattern(dateReq, "date"), async (req, res, next) => {
-    const { coupleIdx, accountIdx } = req.user; // isLogin에서 token해석해서 전달
-    // date = 년,월,일 type
+    // const { coupleIdx, accountIdx } = req.user; // isLogin에서 token해석해서 전달
+    const {coupltIdx, accountIdx} = req.body;
     const { content, date } = req.body;
 
     // 이미지(0~1장) -> 이미지가 있을 경우에만 업로드 함수 실행
