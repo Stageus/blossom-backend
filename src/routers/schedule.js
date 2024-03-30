@@ -126,7 +126,7 @@ router.post("/", checkPattern(scheduleReq, "content"), checkPattern(timestampReq
 
 // 4. put feed/:idx 특정 일정 수정하기
 // TODO : coupleIdx는 islogin 미들웨어 넣어서 req.user에서 가져오도록 바꿔야함
-// TODO : isMycouple 미들웨어 / 모듈 문제점
+// TODO : isMycouple 미들웨어 / 모듈 문제점 ==> 근데 이 다음에 test한 feed 에서는 또 잘됨 => why?
 router.put("/:idx", checkPattern(scheduleReq, "content"), checkPattern(timestampReq, "date"), async(req, res, next) => {
     // const { coupleIdx } = req.user;
     const { coupleIdx } = req.body; // test용
@@ -139,7 +139,7 @@ router.put("/:idx", checkPattern(scheduleReq, "content"), checkPattern(timestamp
     };
 
     try{
-        await isMycouple(coupleIdx, scheduleIdx);
+        await isMycouple(coupleIdx, scheduleIdx, "schedule");
 
         const sql = `UPDATE schedule SET content = $1, date = $2 WHERE idx = $3 AND couple_idx = $4`
         const values = [content, date, scheduleIdx, coupleIdx]
@@ -170,7 +170,7 @@ router.delete("/:idx", async(req, res, next) => {
     };
 
     try{
-        await isMycouple(coupleIdx, scheduleIdx);
+        await isMycouple(coupleIdx, scheduleIdx, "schedule");
 
         // const sql = "UPDATE schedule SET is_delete = true WHERE idx = $1 AND couple_idx = $2"
         const sql = "DELETE FROM schedule WHERE idx = $1 AND couple_idx = $2"
