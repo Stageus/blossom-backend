@@ -1,9 +1,9 @@
 const router = require("express").Router();
 const isLogin = require('../middleware/isLogin');
 const conn = require("../config/postgresql");
-const isBlank = require("../middleware/isBlank");
 const isCouple = require("../middleware/isCouple");
-
+const contentReq = require("../config/patterns");
+const checkPattern = require("../middleware/checkPattern");
 const {loggingMiddleware} = require("../config/mongodb")
 router.use(loggingMiddleware);
 
@@ -136,7 +136,7 @@ router.get("/:idx", isLogin, isCouple, async (req, res, next) => {
 });
 
 // 문답 답변 쓰기 API
-router.post("/:idx", isLogin, isCouple, isBlank('content'), async (req, res, next) => {
+router.post("/:idx", isLogin, isCouple,checkPattern(contentReq, "content"), async (req, res, next) => {
     const userIdx = req.user.idx;
     const coupleIdx = req.user.coupleIdx;
     const questionIdx = req.params.questionIdx;

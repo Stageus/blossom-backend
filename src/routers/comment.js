@@ -1,7 +1,6 @@
 const router = require("express").Router()
 const jwt = require("jsonwebtoken")
 const checkPattern = require("../middleware/checkPattern");
-const isBlank = require("../middleware/isBlank");
 const isLogin = require("../middleware/isLogin");
 const { executeSQL } = require("../modules/sql");
 const { isMycouple } = require("../modules/isMycouple");
