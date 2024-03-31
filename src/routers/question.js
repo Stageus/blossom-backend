@@ -3,14 +3,12 @@ const isLogin = require('../middleware/isLogin');
 const conn = require("../config/postgresql");
 const isBlank = require("../middleware/isBlank");
 const isCouple = require("../middleware/isCouple");
-const logRequest = require('../middleware/logger');
-const generateToken = require("../modules/generateToken");
 
 const {loggingMiddleware} = require("../config/mongodb")
 router.use(loggingMiddleware);
 
 // 문답 전체 목록 불러오기 API
-router.get("/all", isLogin, isCouple, logRequest, async (req, res, next) => {
+router.get("/all", isLogin, isCouple, async (req, res, next) => {
     const coupleIdx = req.user.coupleIdx;
     const lastQuestionIdx = req.query.lastQuestionIdx || 0; // 마지막으로 로드된 질문의 인덱스
     const itemSize = 20; // 페이지당 항목 수
@@ -57,7 +55,7 @@ router.get("/all", isLogin, isCouple, logRequest, async (req, res, next) => {
 });
 
 // 특정 문답 불러오기 API
-router.get("/:idx", isLogin, isCouple, logRequest, async (req, res, next) => {
+router.get("/:idx", isLogin, isCouple, async (req, res, next) => {
     const questionIdx = req.params.questionIdx;
     const userIdx = req.user.idx;
     const coupleIdx = req.user.coupleIdx;
@@ -138,7 +136,7 @@ router.get("/:idx", isLogin, isCouple, logRequest, async (req, res, next) => {
 });
 
 // 문답 답변 쓰기 API
-router.post("/:idx", isLogin, isCouple, isBlank('content'), logRequest, async (req, res, next) => {
+router.post("/:idx", isLogin, isCouple, isBlank('content'), async (req, res, next) => {
     const userIdx = req.user.idx;
     const coupleIdx = req.user.coupleIdx;
     const questionIdx = req.params.questionIdx;
