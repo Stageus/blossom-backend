@@ -10,6 +10,9 @@ const { idReq,pwReq,nameReq,nicknameReq,imageReq,telReq,dateReq,timestampReq,sch
 
 const conn = require("../config/postgresql");
 
+const {loggingMiddleware} = require("../config/mongodb")
+router.use(loggingMiddleware);
+
 // 1.get schedule/all 특정 월의 전체 일정 불러오기
 // TODO : coupleIdx는 islogin 추가해서 req.user에서 받아오도록 하기
 // TODO : req.body에서 date를 받을건지 year,month를 받을건지 결정하고 그에대한 정규식 체크 미들웨어 추가하기

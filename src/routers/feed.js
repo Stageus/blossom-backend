@@ -11,6 +11,10 @@ const { isMycouple } = require("../modules/isMycouple");
 
 const conn = require("../config/postgresql");
 
+
+const {loggingMiddleware} = require("../config/mongodb")
+router.use(loggingMiddleware);
+
 // test용
 router.post("/test", async (req, res, next) => {
     const result = {

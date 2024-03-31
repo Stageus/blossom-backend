@@ -10,6 +10,9 @@ const isLogin = require("../middleware/isLogin");
 const isCouple = require("../middleware/isCouple");
 const logRequest = require('../middleware/logger');
 
+const {loggingMiddleware} = require("../config/mongodb")
+router.use(loggingMiddleware);
+
 //상대 찾기 api
 router.get('/find/partner', isLogin, checkPattern(nicknameReq, 'nickname'), checkPattern(dateReq, 'date'), logRequest, async (req, res, next) => {
     const userIdx = req.user.idx
