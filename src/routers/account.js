@@ -6,6 +6,9 @@ const generateToken = require("../modules/generateToken");
 const logRequest = require('../middleware/logger');
 const { idReq,pwReq,nameReq,telReq,dateReq }= require("../config/patterns");
 
+const {loggingMiddleware} = require("../config/mongodb")
+router.use(loggingMiddleware);
+
 // 로그인 API
 router.post('/login', checkPattern(idReq, 'id'), checkPattern(pwReq, 'pw'), logRequest, async (req, res, next) => {
     const { id, pw } = req.body;

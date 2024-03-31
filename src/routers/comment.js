@@ -9,6 +9,9 @@ const { idReq,pwReq,nameReq,nicknameReq,imageReq,telReq,dateReq,commentReq,idxRe
 
 const conn = require("../config/postgresql")
 
+const {loggingMiddleware} = require("../config/mongodb")
+router.use(loggingMiddleware);
+
 // 1. get comment 특정 피드의 전체 댓글 불러오기
 // TODO : islogin 추가 -> coupleIdx : req.user에서 받게
 router.get("/", checkPattern(idxReq, "feedIdx"), async(req, res, next) => {

@@ -6,6 +6,9 @@ const isCouple = require("../middleware/isCouple");
 const logRequest = require('../middleware/logger');
 const generateToken = require("../modules/generateToken");
 
+const {loggingMiddleware} = require("../config/mongodb")
+router.use(loggingMiddleware);
+
 // 문답 전체 목록 불러오기 API
 router.get("/all", isLogin, isCouple, logRequest, async (req, res, next) => {
     const coupleIdx = req.user.coupleIdx;
