@@ -35,7 +35,7 @@ async function logError(req, res, err) {
         status: err.status || 500,
     };
 
-    await makeLog(req, res, logData);
+    //await makeLog(req, res, logData);
     
     res.status(err.status || 500).send({
         success: false,

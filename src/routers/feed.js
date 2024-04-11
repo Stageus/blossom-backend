@@ -9,8 +9,8 @@ const { executeSQL } = require("../modules/sql");
 
 const conn = require("../config/postgresql");
 
-const {loggingMiddleware} = require("../config/mongodb")
-router.use(loggingMiddleware);
+// const {loggingMiddleware} = require("../config/mongodb")
+// router.use(loggingMiddleware);
 // 공통 TODO : islogin 추가 -> coupleIdx : req.user에서 받게
 
 // test용
@@ -23,30 +23,30 @@ router.post("/test", async (req, res, next) => {
 
     const {coupleIdx, accountIdx} = req.body;
     const {content, date} = req.body;
-    let image;
 
     try {
-        // 업로드된 파일을 처리하기 위해 uploadImage 함수 직접 호출
-        const upload = uploadImage("image");
-        // uploadImage 함수에서 반환된 미들웨어를 사용하여 파일 업로드 처리
-        upload(req, res, err => {
+        uploadImage("image")(req, res, async (err) => {
             if (err) {
-                // 업로드 중 에러 발생 시 처리
-                next(err);
+                // 이미지 업로드 실패 시 처리
+                result.message = "Failed to upload image";
+                res.status(500).json(result);
+                return;
             }
-            // 업로드된 파일에 접근하여 처리
-            image = req.file;
-        });
+
+        const imageUrl = req.file.location;
 
         const sql = `INSERT INTO feed (couple_idx, account_idx, content, date, image_url)
         VALUES ($1, $2, $3, $4, $5)`;
-        const values = [coupleIdx, accountIdx, content, date, image];
+        const values = [coupleIdx, accountIdx, content, date, imageUrl];
 
         await executeSQL(conn, sql, values);
 
         result.data = image;
         result.message = "test";
         res.status(200).send(result);
+
+        
+        });
     } catch (e) {
         next(e);
     }
