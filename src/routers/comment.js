@@ -3,7 +3,6 @@ const jwt = require("jsonwebtoken")
 const checkPattern = require("../middleware/checkPattern");
 const isLogin = require("../middleware/isLogin");
 const { executeSQL } = require("../modules/sql");
-const { isMycouple } = require("../modules/isMycouple");
 const { idReq,pwReq,nameReq,nicknameReq,imageReq,telReq,dateReq,commentReq,idxReq } = require("../config/patterns");
 
 const conn = require("../config/postgresql")
@@ -11,8 +10,9 @@ const conn = require("../config/postgresql")
 const {loggingMiddleware} = require("../config/mongodb")
 router.use(loggingMiddleware);
 
+// 공통 TODO : islogin 추가 -> coupleIdx : req.user에서 받게
+
 // 1. get comment 특정 피드의 전체 댓글 불러오기
-// TODO : islogin 추가 -> coupleIdx : req.user에서 받게
 router.get("/", checkPattern(idxReq, "feedIdx"), async(req, res, next) => {
     // const { coupleIdx } = req.user;
     const { coupleIdx } = req.body;
@@ -25,9 +25,6 @@ router.get("/", checkPattern(idxReq, "feedIdx"), async(req, res, next) => {
     }
 
     try{
-        // 우리 커플의 피드인지 아닌지
-        await isMycouple(coupleIdx, feedIdx, "feed");
-
         // 댓글 전체 오래된순으로 가져오기
         const sql = "SELECT * FROM comment WHERE feed_idx = $1 AND is_delete = false ORDER BY create_at ASC";
         const values = [feedIdx];
@@ -54,7 +51,6 @@ router.get("/", checkPattern(idxReq, "feedIdx"), async(req, res, next) => {
 })
 
 // 2. post comment 특정 피드에 댓글 작성하기
-// TODO : islogin 추가 -> coupleIdx : req.user에서 받게
 router.post("/", checkPattern(idxReq, "feedIdx"), checkPattern(commentReq, "content"), async(req,res,next) => {
     // const { accountIdx, accountIdx } = req.user; // isLogin에서 token 해석
     const { coupleIdx, accountIdx } = req.body;
@@ -66,8 +62,6 @@ router.post("/", checkPattern(idxReq, "feedIdx"), checkPattern(commentReq, "cont
     };
 
     try{
-        await isMycouple(coupleIdx, feedIdx, "feed");
-
         const sql = `INSERT INTO comment (feed_idx, account_idx, comment)
                      VALUES ($1, $2, $3)`;
         const values = [feedIdx, accountIdx, content];
@@ -85,9 +79,6 @@ router.post("/", checkPattern(idxReq, "feedIdx"), checkPattern(commentReq, "cont
 })
 
 // 3. put comment/:idx 특정 댓글 수정하기
-// TODO : islogin 추가 -> coupleIdx : req.user에서 받게
-// 문제 -> 댓글도 같은 커플이면 아무나 수정하기로 했는데 couple_idx 컬럼이 없음
-// 일단은 본인만 수정 가능하다고 가정
 router.put("/:idx", checkPattern(commentReq,"content"), async(req, res, next) => {
     // const { coupleIdx } = req.user; //--> isLogin에서 준거
     const { accountIdx } = req.body;
@@ -116,7 +107,6 @@ router.put("/:idx", checkPattern(commentReq,"content"), async(req, res, next) =>
 })
 
 // 4. delete comment/:idx 특정 댓글 삭제하기 (hard delete)
-// TODO : islogin 추가 -> coupleIdx : req.user에서 받게
 router.delete("/:idx", async(req, res, next) => {
     // const { coupleIdx } = req.user;
     const {accountIdx} = req.body;
