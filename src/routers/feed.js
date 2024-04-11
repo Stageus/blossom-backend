@@ -6,13 +6,12 @@ const { idReq, pwReq, nameReq, nicknameReq, imageReq, telReq, dateReq, feedReq }
 const { s3 } = require("../config/s3");
 const { uploadImage } = require("../modules/uploadImage");
 const { executeSQL } = require("../modules/sql");
-const { isMycouple } = require("../modules/isMycouple");
 
 const conn = require("../config/postgresql");
 
-
-const {loggingMiddleware} = require("../config/mongodb")
-router.use(loggingMiddleware);
+// const {loggingMiddleware} = require("../config/mongodb")
+// router.use(loggingMiddleware);
+// 공통 TODO : islogin 추가 -> coupleIdx : req.user에서 받게
 
 // test용
 router.post("/test", async (req, res, next) => {
@@ -24,37 +23,36 @@ router.post("/test", async (req, res, next) => {
 
     const {coupleIdx, accountIdx} = req.body;
     const {content, date} = req.body;
-    let image;
 
     try {
-        // 업로드된 파일을 처리하기 위해 uploadImage 함수 직접 호출
-        const upload = uploadImage("image");
-        // uploadImage 함수에서 반환된 미들웨어를 사용하여 파일 업로드 처리
-        upload(req, res, err => {
+        uploadImage("image")(req, res, async (err) => {
             if (err) {
-                // 업로드 중 에러 발생 시 처리
-                next(err);
+                // 이미지 업로드 실패 시 처리
+                result.message = "Failed to upload image";
+                res.status(500).json(result);
+                return;
             }
-            // 업로드된 파일에 접근하여 처리
-            image = req.file;
-        });
+
+        const imageUrl = req.file.location;
 
         const sql = `INSERT INTO feed (couple_idx, account_idx, content, date, image_url)
         VALUES ($1, $2, $3, $4, $5)`;
-        const values = [coupleIdx, accountIdx, content, date, image];
+        const values = [coupleIdx, accountIdx, content, date, imageUrl];
 
         await executeSQL(conn, sql, values);
 
         result.data = image;
         result.message = "test";
         res.status(200).send(result);
+
+        
+        });
     } catch (e) {
         next(e);
     }
 });
 
 // 1. get feed/all 피드 전체 불러오기
-// TODO : islogin 추가 -> coupleIdx : req.user에서 받게
 router.get("/all", async (req, res, next) => {
     // const { coupleIdx } = req.user;
     const { coupleIdx } = req.body;
@@ -84,7 +82,6 @@ router.get("/all", async (req, res, next) => {
 })
 
 // 2. get feed/search 날짜로 검색한 피드 불러오기
-// TODO : islogin 추가 -> coupleIdx : req.user에서 받게
 router.get("/search", checkPattern(dateReq, "date"), async (req, res, next) => {
     // const { coupleIdx } = req.user;
     const { coupleIdx } = req.body;
@@ -118,7 +115,6 @@ router.get("/search", checkPattern(dateReq, "date"), async (req, res, next) => {
 })
 
 // 3. post feed 피드 작성하기
-// TODO : islogin 추가 -> coupleIdx, accountIdx : req.user에서 받게
 // TODO : uploagImage 수정
 router.post("/", uploadImage("image"), checkPattern(feedReq, "content"), checkPattern(dateReq, "date"), async (req, res, next) => {
     // const { coupleIdx, accountIdx } = req.user; // isLogin에서 token해석해서 전달
@@ -190,7 +186,6 @@ router.put("/:idx", isLogin, checkPattern(feedReq, "content"), async (req, res, 
 })
 
 // 5. delete feed/:idx 특정 피드 삭제하기
-// TODO : islogin 추가 -> coupleIdx : req.user에서 받게 
 router.delete("/:idx", async (req, res, next) => {
     // const { coupleIdx } = req.user;
     const {coupleIdx} = req.body;
@@ -202,8 +197,6 @@ router.delete("/:idx", async (req, res, next) => {
     };
 
     try {
-        await isMycouple(coupleIdx, feedIdx, "feed");
-
         // const sql = "UPDATE feed SET is_delete = true WHERE idx = $1 AND couple_idx = $2";
         const sql = "DELETE FROM feed WHERE idx = $1 AND couple_idx = $2"
         const values = [feedIdx, coupleIdx];
