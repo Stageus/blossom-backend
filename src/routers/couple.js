@@ -8,10 +8,12 @@ const s3 = require("../config/s3");
 const {nicknameReq,imageReq,dateReq }= require("../config/patterns");
 const isLogin = require("../middleware/isLogin");
 const isCouple = require("../middleware/isCouple");
-const logRequest = require('../middleware/logger');
+
+const {loggingMiddleware} = require("../config/mongodb")
+router.use(loggingMiddleware);
 
 //상대 찾기 api
-router.get('/find/partner', isLogin, checkPattern(nicknameReq, 'nickname'), checkPattern(dateReq, 'date'), logRequest, async (req, res, next) => {
+router.get('/find/partner', isLogin, checkPattern(nicknameReq, 'nickname'), checkPattern(dateReq, 'date'), async (req, res, next) => {
     const userIdx = req.user.idx
     const { couplePartnerId } = req.body;    
     const result = {
@@ -47,7 +49,7 @@ router.get('/find/partner', isLogin, checkPattern(nicknameReq, 'nickname'), chec
 });
 
 // 상대 입력 api
-router.post('/:partnerIdx', isLogin, checkPattern(nicknameReq, 'nickname'), checkPattern(dateReq, 'date'), logRequest, async (req, res, next) => {
+router.post('/:partnerIdx', isLogin, checkPattern(nicknameReq, 'nickname'), checkPattern(dateReq, 'date'), async (req, res, next) => {
     const userIdx = req.user.idx;
     const partnerIdx = req.params.idx;
     const result = {
@@ -121,7 +123,7 @@ router.get('/inform', isLogin, isCouple, async (req, res, next) => {
 });
 
 // 커플 정보 등록 api -> 커플 매칭 후!
-router.post('/inform', isLogin, isCouple, checkPattern(nicknameReq, 'nickname'), checkPattern(dateReq, 'date'), logRequest, async (req, res, next) => {
+router.post('/inform', isLogin, isCouple, checkPattern(nicknameReq, 'nickname'), checkPattern(dateReq, 'date'), async (req, res, next) => {
     const { nickname, date } = req.body;
     const userIdx = req.user.idx;
     const result = {
@@ -199,7 +201,7 @@ router.post('/inform', isLogin, isCouple, checkPattern(nicknameReq, 'nickname'),
 });
 
 // 커플 연애날짜 수정 api
-router.put('/date', isLogin, isCouple, checkPattern(dateReq, 'date'), logRequest, async (req, res, next) => {
+router.put('/date', isLogin, isCouple, checkPattern(dateReq, 'date'), async (req, res, next) => {
     const coupleIdx = req.user.coupleIdx; // 토큰에 coupleIdx 추가하기
     const userIdx = req.user.idx
     const { date } = req.body;    
@@ -265,7 +267,7 @@ router.put('/date', isLogin, isCouple, checkPattern(dateReq, 'date'), logRequest
 });
 
 // 커플 이미지 수정 api
-router.put('/image', isLogin, isCouple, checkPattern(imageReq, 'image'), logRequest, async (req, res, next) => {
+router.put('/image', isLogin, isCouple, checkPattern(imageReq, 'image'), async (req, res, next) => {
     const coupleIdx = req.user.coupleIdx; // 토큰에 coupleIdx 추가하기
     const userIdx = req.user.idx
     const { deleteImageUrl, file } = req.body;    
@@ -338,7 +340,7 @@ router.put('/image', isLogin, isCouple, checkPattern(imageReq, 'image'), logRequ
 });
 
 // 커플 애칭 수정 api
-router.put('/nickname', isLogin, isCouple, checkPattern(nicknameReq, 'nickname'), logRequest, async (req, res, next) => {
+router.put('/nickname', isLogin, isCouple, checkPattern(nicknameReq, 'nickname'), async (req, res, next) => {
     const coupleIdx = req.user.coupleIdx;
     const userIdx = req.user.idx
     const { nickname } = req.body;    

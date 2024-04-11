@@ -9,6 +9,7 @@ const commentReq = /^.{1,50}$/; // 댓글 1~50자
 const timestampReq = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/; //YYYY-MM-DD HH:MM:SS
 const scheduleReq = /^.{1,20}$/; // 일정 1~20자
 const feedReq = /^.{1,200}$/; // 피드 1~200자
+const contentReq = /^.{1,100}$/; // 질문내용 1~200자
 const idxReq = /^[1-9]\d*$/; //숫자만 (int)
 
-module.exports ={idReq,pwReq,nameReq,nicknameReq,imageReq,telReq,dateReq,commentReq,timestampReq,scheduleReq,feedReq,idxReq};
+module.exports ={idReq,pwReq,nameReq,nicknameReq,imageReq,telReq,dateReq,commentReq,timestampReq,scheduleReq,feedReq,contentReq,idxReq};

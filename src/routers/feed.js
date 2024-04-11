@@ -1,7 +1,6 @@
 const router = require("express").Router();
 const jwt = require("jsonwebtoken");
 const checkPattern = require("../middleware/checkPattern");
-const isBlank = require("../middleware/isBlank");
 const isLogin = require("../middleware/isLogin");
 const { idReq, pwReq, nameReq, nicknameReq, imageReq, telReq, dateReq, feedReq } = require("../config/patterns");
 const { s3 } = require("../config/s3");
@@ -10,6 +9,10 @@ const { executeSQL } = require("../modules/sql");
 const { isMycouple } = require("../modules/isMycouple");
 
 const conn = require("../config/postgresql");
+
+
+const {loggingMiddleware} = require("../config/mongodb")
+router.use(loggingMiddleware);
 
 // test용
 router.post("/test", async (req, res, next) => {

@@ -3,11 +3,13 @@ const jwt = require('jsonwebtoken');
 const conn = require("../config/postgresql");
 const checkPattern = require("../middleware/checkPattern");
 const generateToken = require("../modules/generateToken");
-const logRequest = require('../middleware/logger');
 const { idReq,pwReq,nameReq,telReq,dateReq }= require("../config/patterns");
 
+const {loggingMiddleware} = require("../config/mongodb")
+router.use(loggingMiddleware);
+
 // 로그인 API
-router.post('/login', checkPattern(idReq, 'id'), checkPattern(pwReq, 'pw'), logRequest, async (req, res, next) => {
+router.post('/login', checkPattern(idReq, 'id'), checkPattern(pwReq, 'pw'), async (req, res, next) => {
     const { id, pw } = req.body;
     const result = {
         success: false,
@@ -61,7 +63,7 @@ router.post('/login', checkPattern(idReq, 'id'), checkPattern(pwReq, 'pw'), logR
 });
 
 // 회원가입 API
-router.post("signup", checkPattern(nameReq,'name'), checkPattern(idReq,'id'), checkPattern(pwReq, 'pw'), checkPattern(dateReq, 'birth'),checkPattern(telReq,'tel'), logRequest, async (req, res, next) => {
+router.post("signup", checkPattern(nameReq,'name'), checkPattern(idReq,'id'), checkPattern(pwReq, 'pw'), checkPattern(dateReq, 'birth'),checkPattern(telReq,'tel'), async (req, res, next) => {
     const { id, pw, name, tel, birth } = req.body;
     const result = {
         success: false,
@@ -107,7 +109,7 @@ router.post("signup", checkPattern(nameReq,'name'), checkPattern(idReq,'id'), ch
 });
 
 // id 찾기 API -> 이름, 전화번호
-router.get("/find/id", checkPattern(nameReq,'name'), checkPattern( telReq,'tel'), logRequest, async (req, res, next) => {
+router.get("/find/id", checkPattern(nameReq,'name'), checkPattern( telReq,'tel'), async (req, res, next) => {
     const { name, tel } = req.body;
     const result = {
         success: false,
@@ -143,7 +145,7 @@ router.get("/find/id", checkPattern(nameReq,'name'), checkPattern( telReq,'tel')
 });
 
 // pw 확인 부분
-router.get("/find/pw", checkPattern(nameReq,'name'), checkPattern( telReq,'tel'), checkPattern(idReq,'id'), logRequest, async (req,res,next) => {
+router.get("/find/pw", checkPattern(nameReq,'name'), checkPattern( telReq,'tel'), checkPattern(idReq,'id'), async (req,res,next) => {
     const { name, tel, id} = req.body
     const result = {
         "success" : false, 
@@ -177,7 +179,7 @@ router.get("/find/pw", checkPattern(nameReq,'name'), checkPattern( telReq,'tel')
 });
 
 // pw 변경 부분
-router.put("/pw", checkPattern(pwReq,'pw'), checkPattern(pwReq,'newPw'), checkPattern(pwReq,'newPwCheck'), logRequest, async (req,res,next) => {
+router.put("/pw", checkPattern(pwReq,'pw'), checkPattern(pwReq,'newPw'), checkPattern(pwReq,'newPwCheck'), async (req,res,next) => {
     const { userIdx, pw, newPw, newPwCheck } = req.body; 
     const result = {
         "success" : false, 
