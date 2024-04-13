@@ -7,7 +7,6 @@ const generateToken = require("../modules/generateToken");
 const s3 = require("../config/s3");
 const {nicknameReq,imageReq,dateReq }= require("../config/patterns");
 const isLogin = require("../middleware/isLogin");
-const isCouple = require("../middleware/isCouple");
 
 const {loggingMiddleware} = require("../config/mongodb")
 router.use(loggingMiddleware);
@@ -90,7 +89,7 @@ router.post('/:partnerIdx', isLogin, checkPattern(nicknameReq, 'nickname'), chec
 });
 
 // 커플 정보 불러오기 api
-router.get('/inform', isLogin, isCouple, async (req, res, next) => { 
+router.get('/inform', isLogin, async (req, res, next) => { 
     const coupleIdx = req.user.coupleIdx;
     const userIdx = req.user.idx
     const result = {
@@ -123,7 +122,7 @@ router.get('/inform', isLogin, isCouple, async (req, res, next) => {
 });
 
 // 커플 정보 등록 api -> 커플 매칭 후!
-router.post('/inform', isLogin, isCouple, checkPattern(nicknameReq, 'nickname'), checkPattern(dateReq, 'date'), async (req, res, next) => {
+router.post('/inform', isLogin, checkPattern(nicknameReq, 'nickname'), checkPattern(dateReq, 'date'), async (req, res, next) => {
     const { nickname, date } = req.body;
     const userIdx = req.user.idx;
     const result = {
@@ -201,7 +200,7 @@ router.post('/inform', isLogin, isCouple, checkPattern(nicknameReq, 'nickname'),
 });
 
 // 커플 연애날짜 수정 api
-router.put('/date', isLogin, isCouple, checkPattern(dateReq, 'date'), async (req, res, next) => {
+router.put('/date', isLogin, checkPattern(dateReq, 'date'), async (req, res, next) => {
     const coupleIdx = req.user.coupleIdx; // 토큰에 coupleIdx 추가하기
     const userIdx = req.user.idx
     const { date } = req.body;    
@@ -267,7 +266,7 @@ router.put('/date', isLogin, isCouple, checkPattern(dateReq, 'date'), async (req
 });
 
 // 커플 이미지 수정 api
-router.put('/image', isLogin, isCouple, checkPattern(imageReq, 'image'), async (req, res, next) => {
+router.put('/image', isLogin, checkPattern(imageReq, 'image'), async (req, res, next) => {
     const coupleIdx = req.user.coupleIdx; // 토큰에 coupleIdx 추가하기
     const userIdx = req.user.idx
     const { deleteImageUrl, file } = req.body;    
@@ -340,7 +339,7 @@ router.put('/image', isLogin, isCouple, checkPattern(imageReq, 'image'), async (
 });
 
 // 커플 애칭 수정 api
-router.put('/nickname', isLogin, isCouple, checkPattern(nicknameReq, 'nickname'), async (req, res, next) => {
+router.put('/nickname', isLogin, checkPattern(nicknameReq, 'nickname'), async (req, res, next) => {
     const coupleIdx = req.user.coupleIdx;
     const userIdx = req.user.idx
     const { nickname } = req.body;    
