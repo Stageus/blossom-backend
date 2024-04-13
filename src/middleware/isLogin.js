@@ -13,6 +13,10 @@ const isLogin = (req, res, next) => {
         const decoded = jwt.verify(token, process.env.SECRET_KEY);
         req.user = decoded; // 디코딩된 사용자 정보를 req.user에 추가
 
+        if (!user.coupleIdx) {
+            throw new Error("no couple Idx");
+        }
+
         // 다음 미들웨어로 계속 진행
         next();
 
@@ -28,6 +32,11 @@ const isLogin = (req, res, next) => {
             result.message = "token 끝남";
         } else if (err.message === "invalid token") {
             result.message = "token 조작됨";
+            
+        } if (err.message === "no couple Idx") {
+            result.message = "커플 연결 되어있지 않음, 연결 필요";
+        } else if (err.message === "invalid couple idx") {
+            result.message = "조작된 couple Idx";
         } else {
             result.message = "오류 발생";
         }
