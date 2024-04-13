@@ -14,42 +14,36 @@ const conn = require("../config/postgresql");
 // 공통 TODO : islogin 추가 -> coupleIdx : req.user에서 받게
 
 // test용
-router.post("/test", async (req, res, next) => {
-    const result = {
-        success: false,
-        message: "",
-        data: null
-    };
+// router.post("/test", uploadImage("image"), async (req, res, next) => {
+//     const result = {
+//         success: false,
+//         message: "",
+//         data: null
+//     };
 
-    const {coupleIdx, accountIdx} = req.body;
-    const {content, date} = req.body;
+//     const {coupleIdx, accountIdx} = req.body;
+//     const {content, date} = req.body;
+//     //const imageUrl = req.file;
 
-    try {
-        uploadImage("image")(req, res, async (err) => {
-            if (err) {
-                // 이미지 업로드 실패 시 처리
-                result.message = "Failed to upload image";
-                res.status(500).json(result);
-                return;
-            }
+//     try {
+//         // const sql = `INSERT INTO feed (couple_idx, account_idx, content, date, image_url)
+//         // VALUES ($1, $2, $3, $4, $5)`;
+//         // const values = [coupleIdx, accountIdx, content, date, imageUrl];
 
-        const imageUrl = req.file.location;
+//         // await executeSQL(conn, sql, values);
 
-        const sql = `INSERT INTO feed (couple_idx, account_idx, content, date, image_url)
-        VALUES ($1, $2, $3, $4, $5)`;
-        const values = [coupleIdx, accountIdx, content, date, imageUrl];
+//         //result.data = image;
+//         result.message = "test";
+//         res.status(200).send(result);
 
-        await executeSQL(conn, sql, values);
+//     } catch (e) {
+//         next(e);
+//     }
+// });
 
-        result.data = image;
-        result.message = "test";
-        res.status(200).send(result);
-
-        
-        });
-    } catch (e) {
-        next(e);
-    }
+router.post('/upload', uploadImage('image'), (req, res) => {
+    // 파일 업로드가 성공하면 여기에 도달
+    res.status(200).json({ message: '파일 업로드 성공' });
 });
 
 // 1. get feed/all 피드 전체 불러오기
