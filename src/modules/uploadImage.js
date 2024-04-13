@@ -1,5 +1,13 @@
-function uploadFileToS3(req, res, next) {
-    const upload = multer({
+const multer = require("multer");
+const multerS3 = require("multer-s3");
+const { s3 } = require("../config/s3");
+
+// npm install multer multer-s3
+
+const maxFileSize = 5 * 1024 * 1024;
+
+const uploadImage = (name) => {
+    return multer({
         storage: multerS3({
             s3: s3,
             bucket: process.env.BUCKET_NAME,
@@ -21,15 +29,6 @@ function uploadFileToS3(req, res, next) {
             cb(null, true);
         }
     }).single(name);
+};
 
-    upload(req, res, (err) => {
-        if (err instanceof multer.MulterError) {
-            return res.status(400).json({ message: "파일 업로드에 실패했습니다." });
-        } else if (err) {
-            return res.status(500).json({ message: "서버 오류" });
-        }
-        next();
-    });
-}
-
-module.exports = uploadFileToS3;
+module.exports = { uploadImage };
