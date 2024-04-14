@@ -39,7 +39,7 @@ async function loggingMiddleware(req, res, next) {
 
                     const log = {
                         ip: ip,
-                        id: req.session.userId, // id
+                        id: (req.user && req.user.id) || req.body.id, // id
                         apiName : originalUrl,
                         restMethod : method,
                         input : allInput,
