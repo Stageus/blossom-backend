@@ -15,7 +15,7 @@ const connectToMongo = async () => {
 
 async function loggingMiddleware(req, res, next) {
     try {
-            const db = await mongoDBConnect();
+            const db = await connectToMongo();
         
             const { ip, originalUrl, method } = req;
             const allInput = { ...req.body, ...req.params, ...req.query}
