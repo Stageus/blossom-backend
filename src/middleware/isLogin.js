@@ -1,23 +1,23 @@
 const jwt = require("jsonwebtoken");
 
-const isLogin = (req, res, next) => {
-    //cookie 를 제거하고 직접 토큰을 FE에게 보내는 식으로 변경.
+const isLogin = (req, res, next, coupleIdx = null) => {
     const authorizationHeader = req.headers.authorization;
     try {
         if (!authorizationHeader) {
             throw new Error("no token");
         }
 
-        const token = authorizationHeader.split(' ')[1]; // "Bearer <token>" 형태에서 <token> 부분 추출
+        const token = authorizationHeader.split(' ')[1]; 
         console.log("토큰: ", token)
         const decoded = jwt.verify(token, process.env.SECRET_KEY);
-        req.user = decoded; // 디코딩된 사용자 정보를 req.user에 추가
+        req.user = decoded; 
 
-        if (!user.coupleIdx) {
-            throw new Error("no couple Idx");
+        if (coupleIdx) {
+            if(!req.user.coupleIdx){
+                throw new Error("invalid couple idx");
+            }
         }
 
-        // 다음 미들웨어로 계속 진행
         next();
 
     } catch (err) {
@@ -32,17 +32,15 @@ const isLogin = (req, res, next) => {
             result.message = "token 끝남";
         } else if (err.message === "invalid token") {
             result.message = "token 조작됨";
-            
-        } if (err.message === "no couple Idx") {
-            result.message = "커플 연결 되어있지 않음, 연결 필요";
         } else if (err.message === "invalid couple idx") {
-            result.message = "조작된 couple Idx";
+            result.message = "couple 연결 되어있지 않음";
         } else {
             result.message = "오류 발생";
         }
 
-        res.status(401).json(result); // 에러 응답을 JSON 형태로 전송
+        res.status(401).json(result);
     }
 };
+
 
 module.exports = isLogin;
