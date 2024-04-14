@@ -4,8 +4,9 @@ const conn = require("../config/postgresql");
 const checkPattern = require("../middleware/checkPattern");
 const generateToken = require("../modules/generateToken");
 const { idReq,pwReq,nameReq,telReq,dateReq }= require("../config/patterns");
-
+const {executeSQL} = require("../modules/sql");
 const {loggingMiddleware} = require("../config/mongodb")
+
 router.use(loggingMiddleware);
 
 // 로그인 API
@@ -24,14 +25,14 @@ router.post('/login', checkPattern(idReq, 'id'), checkPattern(pwReq, 'pw'), asyn
         const sql = "SELECT * FROM account WHERE id = $1 AND pw = $2";
         const values = [id, pw];
 
-        const { rows } = await executeSQL(conn, sql, values);
+        const dbResult = await executeSQL(conn, sql, values);
 
-        if (rows.length === 0) {
+        if (dbResult.length === 0) {
             result.message = "일치하는 정보 없음";
             return res.status(401).send(result);
         }
         const coupleSql = `SELECT idx FROM couple WHERE couple1_idx = $1 OR couple2_idx = $1;`;
-        const coupleValues = [rows.idx];
+        const coupleValues = [dbResult.idx];
 
         const queryResult = await executeSQL(conn, coupleSql, coupleValues);
         const coupleIdx = queryResult.rows[0].idx;
@@ -63,7 +64,7 @@ router.post('/login', checkPattern(idReq, 'id'), checkPattern(pwReq, 'pw'), asyn
 });
 
 // 회원가입 API
-router.post("signup", checkPattern(nameReq,'name'), checkPattern(idReq,'id'), checkPattern(pwReq, 'pw'), checkPattern(dateReq, 'birth'),checkPattern(telReq,'tel'), async (req, res, next) => {
+router.post("/signup", checkPattern(nameReq,'name'), checkPattern(idReq,'id'), checkPattern(pwReq, 'pw'), checkPattern(dateReq, 'birth'),checkPattern(telReq,'tel'), async (req, res, next) => {
     const { id, pw, name, tel, birth } = req.body;
     const result = {
         success: false,
@@ -75,18 +76,20 @@ router.post("signup", checkPattern(nameReq,'name'), checkPattern(idReq,'id'), ch
         const sql =`SELECT * FROM account WHERE id = $1`;
         const values = [id];
 
-        const { rows } = await executeSQL(conn, sql, values);
+        const dbResult= await executeSQL(conn, sql, values);
 
-        if (rows.length > 0) {
+        if (dbResult.length > 0) {
             return next({
                 message : "이미 사용 중",
                 status : 409
             });   
+
         } else {
             const insertQuery = `INSERT INTO account (name, id, pw, tel, birth) VALUES ($1, $2, $3, $4, $5);`;
             const values = [name, id, pw, tel, birth];
     
-            const { rowCount } = await executeSQL(conn, insertQuery, values);
+            const insertResult = await executeSQL(conn, insertQuery, values);
+            const rowCount=insertResult.rowCount;
 
             if (rowCount == 0) {
                 return next({
@@ -122,16 +125,16 @@ router.get("/find/id", checkPattern(nameReq,'name'), checkPattern( telReq,'tel')
         const sql = `SELECT id FROM account WHERE name = $1 AND tel = $2;`;
         const values = [name, tel];
 
-        const { rows } = await executeSQL(conn, sql, values);
+        const dbResult = await executeSQL(conn, sql, values);
 
-        if (rows.length == 0) {
+        if (dbResult.length == 0) {
             return next({
                 message : "일치하는 정보 없음",
                 status : 404
             });  
         }
 
-        const foundId = rows[0].id;
+        const foundId = dbResult[0].id;
         result.success = true;
         result.message = `아이디 찾기 성공, 아이디는 ${foundId} 입니다.`;
         result.data = { id: foundId };
@@ -158,9 +161,9 @@ router.get("/find/pw", checkPattern(nameReq,'name'), checkPattern( telReq,'tel')
         const sql = `SELECT pw FROM account WHERE name = $1 AND tel = $2 AND id = $3`;
         const values = [name, tel, id];
 
-        const { rows } = await executeSQL(conn, sql, values);
+        const dbResult = await executeSQL(conn, sql, values);
 
-        if (rows.length === 0) {
+        if (dbResult.length === 0) {
             return next({
                 message : "일치하는 정보 없음",
                 status : 404
@@ -196,12 +199,11 @@ router.put("/pw", checkPattern(pwReq,'pw'), checkPattern(pwReq,'newPw'), checkPa
             });  
         }
 
-        const changePwQuery = {
-            text: `UPDATE account SET pw = $1, WHERE idx = $2;`,
-            values: [pw, userIdx],
-        };
+        const sql = `UPDATE account SET pw = $1 WHERE idx = $2`;
+        const values = [pw, userIdx];
 
-        const { rowCount } = await queryConnect(changePwQuery);
+        const dbResult = await executeSQL(conn, sql, values);
+        const rowCount = dbResult.rowCount;
 
         if (rowCount === 0) { 
             throw new Error("비밀번호 변경 실패");
