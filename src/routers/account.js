@@ -31,25 +31,28 @@ router.post('/login', checkPattern(idReq, 'id'), checkPattern(pwReq, 'pw'), asyn
             result.message = "일치하는 정보 없음";
             return res.status(401).send(result);
         }
+
+        result.message = '로그인 성공';
+
         const coupleSql = `SELECT idx FROM couple WHERE couple1_idx = $1 OR couple2_idx = $1;`;
         const coupleValues = [dbResult.idx];
 
         const queryResult = await executeSQL(conn, coupleSql, coupleValues);
-        const coupleIdx = queryResult.rows[0].idx;
-
-        if (coupleIdx == null || undefined || 0){
-            return next({
-                message : "커플 연결 되어있지 않음, 커플 연결 해야함",
-                status : 404
-            });
+        console.log(queryResult);
+        let coupleIdx=0;
+        if (queryResult.length > 0){
+            coupleIdx = queryResult[0].idx;
+        }else{
+            result.message = "커플 연결 되어있지 않음, 커플 연결 해야함";
+            //coupleIdx 관련 문제
         }
 
         // 토큰 발급
-        const token = await generateToken(rows[0], coupleIdx);
+        const token = await generateToken(dbResult[0], coupleIdx);
 
         result.success = true;
-        result.message = '로그인 성공';
-        result.data.user = rows[0];
+
+        result.data.user = dbResult[0];
         result.data.token = token;
 
         res.send(result);
@@ -200,7 +203,7 @@ router.put("/pw", checkPattern(pwReq,'pw'), checkPattern(pwReq,'newPw'), checkPa
         }
 
         const sql = `UPDATE account SET pw = $1 WHERE idx = $2`;
-        const values = [pw, userIdx];
+        const values = [newPw, userIdx];
 
         const dbResult = await executeSQL(conn, sql, values);
         const rowCount = dbResult.rowCount;
