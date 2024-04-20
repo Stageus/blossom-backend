@@ -1,7 +1,7 @@
 const jwt = require('jsonwebtoken');
 
 // 토큰 발급 및 재발급 함수
-async function generateToken(user, coupleIdx = null) {
+async function generateToken(user, coupleIdx = 0) {
     try {
         const token = jwt.sign(
             {

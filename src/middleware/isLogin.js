@@ -2,6 +2,7 @@ const jwt = require("jsonwebtoken");
 
 const isLogin = (req, res, next, coupleIdx = null) => {
     const authorizationHeader = req.headers.authorization;
+    
     try {
         if (!authorizationHeader) {
             throw new Error("no token");
@@ -12,10 +13,9 @@ const isLogin = (req, res, next, coupleIdx = null) => {
         const decoded = jwt.verify(token, process.env.SECRET_KEY);
         req.user = decoded; 
 
-        if (coupleIdx) {
-            if(!req.user.coupleIdx){
-                throw new Error("invalid couple idx");
-            }
+        if (coupleIdx&&!req.user.coupleIdx) {
+            throw new Error("invalid couple idx");
+
         }
 
         next();

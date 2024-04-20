@@ -24,16 +24,16 @@ router.get('/find/partner', isLogin, checkPattern(nicknameReq, 'nickname'), chec
         const sql =`SELECT idx FROM account WHERE idx NOT IN (SELECT couple1_idx FROM couple UNION ALL SELECT couple2_idx FROM couple)`;
         const values = [couplePartnerId];
 
-        const { rows } = await executeSQL(conn, sql, values);
+        const dbResult = await executeSQL(conn, sql, values);
     
-        if (rows.length == 0) {
+        if (dbResult.length == 0) {
             return next({
                 message : "일치하는 상대 정보 없음",
                 status : 404
             });  
         }
     
-        const couplePartnerIdx = rows.idx
+        const couplePartnerIdx = dbResult.idx
     
         result.success = true;
         result.message = `상대 찾기 성공.`;
@@ -60,7 +60,11 @@ router.post('/:partnerIdx', isLogin, checkPattern(nicknameReq, 'nickname'), chec
         const insertSql =`INSERT INTO couple (couple1_idx, couple2_idx) VALUES ($1, $2) RETURNING idx;`;
         const insertValues = [userIdx, partnerIdx];
 
-        const { rowCount, rows } = await executeSQL(conn, insertSql, insertValues);
+        const dbResult = await executeSQL(conn, insertSql, insertValues);
+
+        rows=dbResult.rows;
+        rowCount=dbResult.rowCount;
+
         const coupleIdx = rows[0].idx;
 
         if(rowCount === 0) {
@@ -101,9 +105,9 @@ router.get('/inform', isLogin, async (req, res, next) => {
         const sql =`SELECT * FROM couple WHERE idx = $1 AND account_idx = $2;`;
         const values = [coupleIdx, userIdx];
 
-        const { rows } = await executeSQL(conn, sql, values);
+        const dbResult = await executeSQL(conn, sql, values);
     
-        if (rows.length == 0) {
+        if (dbResult.length == 0) {
             return next({
                 message : "일치하는 정보 없음",
                 status : 404
@@ -112,7 +116,7 @@ router.get('/inform', isLogin, async (req, res, next) => {
     
         result.success = true;
         result.message = `커플 정보 불러오기 성공.`;
-        result.data = { rows };
+        result.data = dbResult;
     
         res.send(result);
     } catch (error) {
@@ -138,9 +142,9 @@ router.post('/inform', isLogin, checkPattern(nicknameReq, 'nickname'), checkPatt
                                     FROM couple WHERE couple1_idx = $1 OR couple2_idx = $1 RETURNING partner_idx `;
         const selectValues = [userIdx];
 
-        const { rows } = await executeSQL(conn, selectPartnerQuery, selectValues);
+        const dbResult = await executeSQL(conn, selectPartnerQuery, selectValues);
 
-        if (rows == 0) {
+        if (dbResult == 0) {
             // 롤백 후 에러 처리
             await conn.query('ROLLBACK');
             return next({
@@ -149,12 +153,13 @@ router.post('/inform', isLogin, checkPattern(nicknameReq, 'nickname'), checkPatt
             })
         }
 
-        const couplePartnerIdx = rows[0].partner_idx;
+        const couplePartnerIdx = dbResult[0].partner_idx;
 
         const updateAccountQuery = `UPDATE account SET nickname = $1 WHERE idx = $2;`;
         const updateValues = [nickname, couplePartnerIdx];
 
-        const { rowCount } = await executeSQL(conn, updateAccountQuery, updateValues);
+        const updateAccountResult = await executeSQL(conn, updateAccountQuery, updateValues);
+        const rowCount = updateAccountResult.rowCount;
 
         if (rowCount == 0) {
             // 롤백 후 에러 처리
@@ -216,9 +221,9 @@ router.put('/date', isLogin, checkPattern(dateReq, 'date'), async (req, res, nex
         const query = `SELECT couple1_idx, couple2_idx FROM couple WHERE idx = $1 AND account_idx = $2;`;
         const values = [coupleIdx, userIdx];
 
-        const { rows } = await executeSQL(conn, query, values);
+        const dbResult = await executeSQL(conn, query, values);
     
-        if (rows.length == 0) {
+        if (dbResult.length == 0) {
             await conn.query('ROLLBACK');
             return next({
                 message : "일치하는 정보 없음",
@@ -226,8 +231,8 @@ router.put('/date', isLogin, checkPattern(dateReq, 'date'), async (req, res, nex
             });  
         }
     
-        const couple1_idx = rows[0].couple1_idx;
-        const couple2_idx = rows[0].couple2_idx;
+        const couple1_idx = dbResult[0].couple1_idx;
+        const couple2_idx = dbResult[0].couple2_idx;
     
         let couplePartnerIdx;
         if(couple1_idx!=userIdx){
@@ -315,7 +320,8 @@ router.put('/image', isLogin, checkPattern(imageReq, 'image'), async (req, res, 
             const query = `INSERT INTO couple (image_url) VALUES ($1);`;
             const values = [imageUrl];
     
-            const {rowCount} = await executeSQL(conn, query, values);
+            const dbResult = await executeSQL(conn, query, values);
+            const rowCount = dbResult.rowCount;
 
             if(rowCount==0){
                 await conn.query('ROLLBACK');
@@ -356,9 +362,9 @@ router.put('/nickname', isLogin, checkPattern(nicknameReq, 'nickname'), async (r
         const query = `SELECT couple1_idx, couple2_idx FROM couple WHERE idx = $1 AND account_idx = $2;`;
         const values = [coupleIdx, userIdx];
 
-        const { rows } = await executeSQL(conn, query, values);
+        const dbResult = await executeSQL(conn, query, values);
 
-        if (rows.length == 0) {
+        if (dbResult.length == 0) {
             await conn.query('ROLLBACK');
             return next({
                 message : "일치하는 정보 없음",
@@ -366,8 +372,8 @@ router.put('/nickname', isLogin, checkPattern(nicknameReq, 'nickname'), async (r
             });  
         }
 
-        const couple1_idx = rows[0].couple1_idx;
-        const couple2_idx = rows[0].couple2_idx;
+        const couple1_idx = dbResult[0].couple1_idx;
+        const couple2_idx = dbResult[0].couple2_idx;
 
         let couplePartnerIdx;
         if (couple1_idx != userIdx) {
