@@ -66,9 +66,9 @@ router.post('/login', checkPattern(idReq, 'id'), checkPattern(pwReq, 'pw'), asyn
     }
 });
 
-// 회원가입 API
-router.post("/signup", checkPattern(nameReq,'name'), checkPattern(idReq,'id'), checkPattern(pwReq, 'pw'), checkPattern(dateReq, 'birth'),checkPattern(telReq,'tel'), async (req, res, next) => {
-    const { id, pw, name, tel, birth } = req.body;
+// id 중복확인 api
+router.post("/checkId", checkPattern(idReq,'id'), async (req, res, next) => {
+    const { id } = req.body;
     const result = {
         success: false,
         message: '',
@@ -88,23 +88,46 @@ router.post("/signup", checkPattern(nameReq,'name'), checkPattern(idReq,'id'), c
             });   
 
         } else {
-            const insertQuery = `INSERT INTO account (name, id, pw, tel, birth) VALUES ($1, $2, $3, $4, $5);`;
-            const values = [name, id, pw, tel, birth];
-    
-            const insertResult = await executeSQL(conn, insertQuery, values);
-            const rowCount=insertResult.rowCount;
-
-            if (rowCount == 0) {
-                return next({
-                    message : "회원 가입 오류",
-                    status : 500
-                });
-            }  
-
             result.success = true;
             result.data = rowCount;
-            result.message = "회원 가입 성공"
+            result.message = "아이디 사용 가능"
         }
+
+        res.send(result);
+
+    }
+    catch(e){
+        next();
+    }
+});
+
+// 회원가입 API
+router.post("/signup", checkPattern(nameReq,'name'), checkPattern(idReq,'id'), checkPattern(pwReq, 'pw'), checkPattern(dateReq, 'birth'),checkPattern(telReq,'tel'), async (req, res, next) => {
+    const { id, pw, name, tel, birth } = req.body;
+    const result = {
+        success: false,
+        message: '',
+        data: null,
+    };
+
+    try {
+        const insertQuery = `INSERT INTO account (name, id, pw, tel, birth) VALUES ($1, $2, $3, $4, $5);`;
+        const values = [name, id, pw, tel, birth];
+
+        const insertResult = await executeSQL(conn, insertQuery, values);
+        const rowCount=insertResult.rowCount;
+
+        if (rowCount == 0) {
+            return next({
+                message : "회원 가입 오류",
+                status : 500
+            });
+        }  
+
+        result.success = true;
+        result.data = rowCount;
+        result.message = "회원 가입 성공"
+        
 
         res.send(result);
 
