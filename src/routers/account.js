@@ -67,7 +67,7 @@ router.post('/login', checkPattern(idReq, 'id'), checkPattern(pwReq, 'pw'), asyn
 });
 
 // id 중복확인 api
-router.post("/checkId", checkPattern(idReq,'id'), async (req, res, next) => {
+router.get("/checkId", checkPattern(idReq,'id'), async (req, res, next) => {
     const { id } = req.body;
     const result = {
         success: false,
