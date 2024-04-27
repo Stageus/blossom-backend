@@ -4,6 +4,7 @@ const checkPattern = require("../middleware/checkPattern");
 const conn = require("../config/postgresql");
 const upload = require("../modules/uploadImage");
 const generateToken = require("../modules/generateToken");
+const {executeSQL} = require("../modules/sql");
 const s3 = require("../config/s3");
 const {nicknameReq,imageReq,dateReq }= require("../config/patterns");
 const isLogin = require("../middleware/isLogin");
@@ -12,8 +13,7 @@ const {loggingMiddleware} = require("../config/mongodb")
 router.use(loggingMiddleware);
 
 //상대 찾기 api
-router.get('/find/partner', isLogin, checkPattern(nicknameReq, 'nickname'), checkPattern(dateReq, 'date'), async (req, res, next) => {
-    const userIdx = req.user.idx
+router.get('/find/partner', isLogin, async (req, res, next) => {
     const { couplePartnerId } = req.body;    
     const result = {
         success: false,
@@ -21,8 +21,25 @@ router.get('/find/partner', isLogin, checkPattern(nicknameReq, 'nickname'), chec
         data: null,
     };
     try{
-        const sql =`SELECT idx FROM account WHERE idx NOT IN (SELECT couple1_idx FROM couple UNION ALL SELECT couple2_idx FROM couple)`;
-        const values = [couplePartnerId];
+
+        const idSql=`SELECT idx FROM account WHERE id = $1`;
+        const idValues=[couplePartnerId]
+
+        const idResult = await executeSQL(conn,idSql,idValues);
+        console.log(idResult)
+
+        const couplePartnerIdx = idResult.idx;
+
+        const sql =`SELECT idx FROM account 
+                    WHERE idx NOT IN (
+                    SELECT couple1_idx FROM couple 
+                    WHERE couple1_idx = $1
+                    UNION ALL
+                    SELECT couple2_idx FROM couple 
+                    WHERE couple2_idx = $1
+                    );
+        `;
+        const values = [couplePartnerIdx];
 
         const dbResult = await executeSQL(conn, sql, values);
     
@@ -32,9 +49,7 @@ router.get('/find/partner', isLogin, checkPattern(nicknameReq, 'nickname'), chec
                 status : 404
             });  
         }
-    
-        const couplePartnerIdx = dbResult.idx
-    
+        
         result.success = true;
         result.message = `상대 찾기 성공.`;
         result.data = { couplePartnerIdx };
@@ -48,9 +63,9 @@ router.get('/find/partner', isLogin, checkPattern(nicknameReq, 'nickname'), chec
 });
 
 // 상대 입력 api
-router.post('/:partnerIdx', isLogin, checkPattern(nicknameReq, 'nickname'), checkPattern(dateReq, 'date'), async (req, res, next) => {
+router.post('/:partnerIdx', isLogin, async (req, res, next) => {
     const userIdx = req.user.idx;
-    const partnerIdx = req.params.idx;
+    const partnerIdx = req.params.partnerIdx;
     const result = {
         success: false,
         message: '커플 정보 등록 실패',
@@ -61,12 +76,12 @@ router.post('/:partnerIdx', isLogin, checkPattern(nicknameReq, 'nickname'), chec
         const insertValues = [userIdx, partnerIdx];
 
         const dbResult = await executeSQL(conn, insertSql, insertValues);
+        console.log(dbResult)
 
-        rows=dbResult.rows;
         rowCount=dbResult.rowCount;
 
-        const coupleIdx = rows[0].idx;
-
+        const coupleIdx = dbResult.idx;
+        console.log(dbResult.idx)
         if(rowCount === 0) {
             return next({
                 message: "커플 입력 실패",
