@@ -77,9 +77,9 @@ router.get("/search", checkPattern(dateReq, "date"), async (req, res, next) => {
 
 // 3. post feed 피드 작성하기
 // TODO : uploagImage 수정
-router.post("/", uploadImage("image"), checkPattern(feedReq, "content"), checkPattern(dateReq, "date"), async (req, res, next) => {
-    // const { coupleIdx, accountIdx } = req.user; // isLogin에서 token해석해서 전달
-    const { coupleIdx, accountIdx } = req.body;
+router.post("/", isLogin, uploadImage("image"), checkPattern(feedReq, "content"), checkPattern(dateReq, "date"), async (req, res, next) => {
+    const { coupleIdx, accountIdx } = req.user; // isLogin에서 token해석해서 전달
+    // const { coupleIdx, accountIdx } = req.body;
     const { content, date } = req.body;
     const image = req.file;
 
