@@ -80,8 +80,8 @@ router.post('/:partnerIdx', isLogin, async (req, res, next) => {
 
         rowCount=dbResult.rowCount;
 
-        const coupleIdx = dbResult.idx;
-        console.log(dbResult.idx)
+        const coupleIdx = dbResult[0].idx;
+        console.log(coupleIdx)
         if(rowCount === 0) {
             return next({
                 message: "커플 입력 실패",
@@ -90,10 +90,12 @@ router.post('/:partnerIdx', isLogin, async (req, res, next) => {
         }
         
         // 커플 정보가 성공적으로 등록되면 토큰을 재발행하여 커플 정보를 추가
-        const newToken = await generateToken(user, coupleIdx);
+        const newToken = await generateToken(req.user, coupleIdx);
+        console.log("newToken: ",newToken)
         
-        // 클라이언트에게 새로 발급된 토큰 전달
+        // 클라이언트에게 새로 발급된 토큰 전달 - 새로 발행된 토큰 전달??
         res.setHeader('Authorization', `Bearer ${newToken}`);
+
 
         result.success = true;
         result.message = `커플 정보 입력 성공.`;
@@ -109,18 +111,23 @@ router.post('/:partnerIdx', isLogin, async (req, res, next) => {
 
 // 커플 정보 불러오기 api
 router.get('/inform', isLogin, async (req, res, next) => { 
+    console.log("유저: ", req.user)
     const coupleIdx = req.user.coupleIdx;
+    console.log(coupleIdx)
     const userIdx = req.user.idx
+    console.log(userIdx)
     const result = {
         success: false,
         message: '커플 정보 불러오기 실패',
         data: null
     };
     try{
-        const sql =`SELECT * FROM couple WHERE idx = $1 AND account_idx = $2;`;
+        const sql =`SELECT * FROM couple WHERE idx = $1 AND (couple1_idx = $2 OR couple2_idx = $2);`
         const values = [coupleIdx, userIdx];
 
         const dbResult = await executeSQL(conn, sql, values);
+
+        console.log("db결과: ",dbResult)
     
         if (dbResult.length == 0) {
             return next({
@@ -141,9 +148,11 @@ router.get('/inform', isLogin, async (req, res, next) => {
 });
 
 // 커플 정보 등록 api -> 커플 매칭 후!
-router.post('/inform', isLogin, checkPattern(nicknameReq, 'nickname'), checkPattern(dateReq, 'date'), async (req, res, next) => {
+router.post('/inform/:idx', checkPattern(nicknameReq, 'nickname'), checkPattern(dateReq, 'date'), isLogin, async (req, res, next) => {
     const { nickname, date } = req.body;
     const userIdx = req.user.idx;
+    const coupleIdx = req.params.idx;
+    console.log("userIdx: ", userIdx)
     const result = {
         success: false,
         message: '커플 정보 등록 실패',
@@ -153,9 +162,9 @@ router.post('/inform', isLogin, checkPattern(nicknameReq, 'nickname'), checkPatt
         // 트랜잭션 시작
         await conn.query('BEGIN');
 
-        const selectPartnerQuery = `SELECT COALESCE(NULLIF(couple1_idx, $1), couple2_idx) AS partner_idx
-                                    FROM couple WHERE couple1_idx = $1 OR couple2_idx = $1 RETURNING partner_idx `;
-        const selectValues = [userIdx];
+        const selectPartnerQuery = `SELECT couple1_idx, couple2_idx FROM couple WHERE idx=$1`;
+        const selectValues = [coupleIdx];
+        console.log("selectValues: ", selectValues)
 
         const dbResult = await executeSQL(conn, selectPartnerQuery, selectValues);
 
@@ -167,17 +176,27 @@ router.post('/inform', isLogin, checkPattern(nicknameReq, 'nickname'), checkPatt
                 status: 404
             })
         }
-
-        const couplePartnerIdx = dbResult[0].partner_idx;
+        
+        const couple1_idx = dbResult[0].couple1_idx;
+        const couple2_idx = dbResult[0].couple2_idx;
+    
+        let couplePartnerIdx;
+        if(couple1_idx!=userIdx){
+            couplePartnerIdx=couple1_idx;
+        } 
+        else{
+            couplePartnerIdx=couple2_idx;
+        }
 
         const updateAccountQuery = `UPDATE account SET nickname = $1 WHERE idx = $2;`;
         const updateValues = [nickname, couplePartnerIdx];
 
         const updateAccountResult = await executeSQL(conn, updateAccountQuery, updateValues);
+        console.log("updateAccountResult: ",updateAccountResult)
         const rowCount = updateAccountResult.rowCount;
 
         if (rowCount == 0) {
-            // 롤백 후 에러 처리
+            // 롤백 후 에러 처리 
             await conn.query('ROLLBACK');
             return next({
                 message: "커플 애칭 입력 실패",
@@ -189,6 +208,7 @@ router.post('/inform', isLogin, checkPattern(nicknameReq, 'nickname'), checkPatt
         const updateCoupleValues = [date, couplePartnerIdx];
 
         const queryResult = await executeSQL(conn, updateCoupleQuery, updateCoupleValues);
+        console.log("queryResult: ",queryResult)
 
         const updateResult = queryResult.rowCount;
 
@@ -210,7 +230,7 @@ router.post('/inform', isLogin, checkPattern(nicknameReq, 'nickname'), checkPatt
         res.send(result);
     } catch (error) {
         // 에러 발생 시 롤백 후 에러 처리
-        await conn.query('ROLLBACK');
+        //await conn.query('ROLLBACK');
         result.error = error;
         return next(error);
     } finally {
@@ -233,8 +253,8 @@ router.put('/date', isLogin, checkPattern(dateReq, 'date'), async (req, res, nex
     try{
         await conn.query('BEGIN');
 
-        const query = `SELECT couple1_idx, couple2_idx FROM couple WHERE idx = $1 AND account_idx = $2;`;
-        const values = [coupleIdx, userIdx];
+        const query = `SELECT couple1_idx, couple2_idx FROM couple WHERE idx = $1;`;
+        const values = [coupleIdx];
 
         const dbResult = await executeSQL(conn, query, values);
     

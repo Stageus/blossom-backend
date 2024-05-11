@@ -7,6 +7,7 @@ const checkPattern = (pattern, item) => (req, res, next) => {
             error.status = 400;
             throw error;
         }
+        console.log("입력 양식 확인 완료. 오류 없음.")
 
         next();
     } catch (error) {
