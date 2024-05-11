@@ -13,39 +13,6 @@ const conn = require("../config/postgresql");
 // router.use(loggingMiddleware);
 // 공통 TODO : islogin 추가 -> coupleIdx : req.user에서 받게
 
-// test용
-// router.post("/test", uploadImage("image"), async (req, res, next) => {
-//     const result = {
-//         success: false,
-//         message: "",
-//         data: null
-//     };
-
-//     const {coupleIdx, accountIdx} = req.body;
-//     const {content, date} = req.body;
-//     //const imageUrl = req.file;
-
-//     try {
-//         // const sql = `INSERT INTO feed (couple_idx, account_idx, content, date, image_url)
-//         // VALUES ($1, $2, $3, $4, $5)`;
-//         // const values = [coupleIdx, accountIdx, content, date, imageUrl];
-
-//         // await executeSQL(conn, sql, values);
-
-//         //result.data = image;
-//         result.message = "test";
-//         res.status(200).send(result);
-
-//     } catch (e) {
-//         next(e);
-//     }
-// });
-
-router.post('/upload', uploadImage('image'), (req, res) => {
-    // 파일 업로드가 성공하면 여기에 도달
-    res.status(200).json({ message: '파일 업로드 성공' });
-});
-
 // 1. get feed/all 피드 전체 불러오기
 router.get("/all", async (req, res, next) => {
     // const { coupleIdx } = req.user;
@@ -110,9 +77,9 @@ router.get("/search", checkPattern(dateReq, "date"), async (req, res, next) => {
 
 // 3. post feed 피드 작성하기
 // TODO : uploagImage 수정
-router.post("/", uploadImage("image"), checkPattern(feedReq, "content"), checkPattern(dateReq, "date"), async (req, res, next) => {
-    // const { coupleIdx, accountIdx } = req.user; // isLogin에서 token해석해서 전달
-    const { coupleIdx, accountIdx } = req.body;
+router.post("/", isLogin, uploadImage("image"), checkPattern(feedReq, "content"), checkPattern(dateReq, "date"), async (req, res, next) => {
+    const { coupleIdx, accountIdx } = req.user; // isLogin에서 token해석해서 전달
+    // const { coupleIdx, accountIdx } = req.body;
     const { content, date } = req.body;
     const image = req.file;
 
@@ -140,15 +107,12 @@ router.post("/", uploadImage("image"), checkPattern(feedReq, "content"), checkPa
 
 // 4. put feed/:idx 특정 피드 수정하기
 // TODO : 뜯어고치기..
-router.put("/:idx", isLogin, checkPattern(feedReq, "content"), async (req, res, next) => {
+// FileFlag => 기존 이미지 일경우 0(txt) / 기존 이미지 일 경우 1(image) ==> 미들웨어로 uploadImage 하면 기존 이미지어도 일단 올라감 -> 어캄?
+router.put("/:idx", isLogin, uploadImage("image"), checkPattern(feedReq, "content"), async (req, res, next) => {
     const { coupleIdx } = req.user; //--> isLogin에서 토큰 확인후 couple_idx와 account_idx 줘야함
-    const { content, fileFlag } = req.body; // fileFlag = 0 -> 기존꺼(text경로) / 1 -> 새로운거(file이니까 처리 필요)
-    let image = req.body;
+    const { content, fileFlag } = req.body;
+    let image = req.file;
     const feedIdx = req.params.idx;
-
-    if (fileFlag == 1 && (!image || image == null)) { // 이미지가 새로운 것이라면 s3에 업로드
-        image = uploadImage("image");
-    }
 
     const result = {
         success: false,
@@ -156,18 +120,11 @@ router.put("/:idx", isLogin, checkPattern(feedReq, "content"), async (req, res, 
     };
 
     try {
+        // Image 없을 경우 undefined로 오나 Null로 오나? -> null로 오면 그냥 image_url에 넣어도 되는디
         const sql = `UPDATE feed SET content = $1 AND image_url = $2 WHERE idx = $3 AND couple_idx = $4`
         const values = [content, feedIdx, coupleIdx]
 
-        await executeSQL(conn, sql, values)
-        // 1. 이미지추가만
-        // 2. 이미지추가, 글 수정 (content=modify newPic=add delPic=x)
-        // 3. 이미지 수정만 (content=x newPic=modify delPic=modify)
-        // 4. 이미지 수정, 글 수정 (content=modify newPic=modify delPic=modify)
-
-        // 이미지 삭제도 있나? 
-        // 5. 이미지 삭제만 (content=x newPic=x delPic=delete) 
-        // 6. 이미지 삭제, 글 수정 (content=modify newPic=x delPic=delete)
+        await executeSQL(conn, sql, values);
 
         // 수정 성공시
         result.success = true;
@@ -182,7 +139,7 @@ router.put("/:idx", isLogin, checkPattern(feedReq, "content"), async (req, res, 
 // 5. delete feed/:idx 특정 피드 삭제하기
 router.delete("/:idx", async (req, res, next) => {
     // const { coupleIdx } = req.user;
-    const {coupleIdx} = req.body;
+    const { coupleIdx } = req.body;
     const feedIdx = req.params.idx;
 
     const result = {

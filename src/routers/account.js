@@ -3,9 +3,9 @@ const jwt = require('jsonwebtoken');
 const conn = require("../config/postgresql");
 const checkPattern = require("../middleware/checkPattern");
 const generateToken = require("../modules/generateToken");
-const { idReq,pwReq,nameReq,telReq,dateReq }= require("../config/patterns");
-const {executeSQL} = require("../modules/sql");
-const {loggingMiddleware} = require("../config/mongodb")
+const { idReq, pwReq, nameReq, telReq, dateReq } = require("../config/patterns");
+const { executeSQL } = require("../modules/sql");
+const { loggingMiddleware } = require("../config/mongodb")
 
 router.use(loggingMiddleware);
 
@@ -16,7 +16,7 @@ router.post('/login', checkPattern(idReq, 'id'), checkPattern(pwReq, 'pw'), asyn
         success: false,
         message: '로그인 실패',
         data: {
-            token : ""
+            token: ""
         }
     };
 
@@ -47,9 +47,9 @@ router.post('/login', checkPattern(idReq, 'id'), checkPattern(pwReq, 'pw'), asyn
         const queryResult = await executeSQL(conn, coupleSql, coupleValues);
         console.log("커플 조회 결과: ", queryResult);
 
-        if (queryResult.length > 0){
+        if (queryResult.length > 0) {
             coupleIdx = queryResult[0].idx;
-        }else{
+        } else {
             result.message = "커플 연결 되어있지 않음, 커플 연결 해야함";
             //coupleIdx 관련 문제
         }
@@ -74,7 +74,7 @@ router.post('/login', checkPattern(idReq, 'id'), checkPattern(pwReq, 'pw'), asyn
 });
 
 // id 중복확인 api
-router.get("/checkId", checkPattern(idReq,'id'), async (req, res, next) => {
+router.get("/checkId", checkPattern(idReq, 'id'), async (req, res, next) => {
     const { id } = req.body;
     const result = {
         success: false,
@@ -83,16 +83,16 @@ router.get("/checkId", checkPattern(idReq,'id'), async (req, res, next) => {
     };
 
     try {
-        const sql =`SELECT * FROM account WHERE id = $1`;
+        const sql = `SELECT * FROM account WHERE id = $1`;
         const values = [id];
 
-        const dbResult= await executeSQL(conn, sql, values);
+        const dbResult = await executeSQL(conn, sql, values);
 
         if (dbResult.length > 0) {
             return next({
-                message : "이미 사용 중",
-                status : 409
-            });   
+                message: "이미 사용 중",
+                status: 409
+            });
 
         } else {
             result.success = true;
@@ -103,13 +103,13 @@ router.get("/checkId", checkPattern(idReq,'id'), async (req, res, next) => {
         res.send(result);
 
     }
-    catch(e){
+    catch (e) {
         next();
     }
 });
 
 // 회원가입 API
-router.post("/signup", checkPattern(nameReq,'name'), checkPattern(idReq,'id'), checkPattern(pwReq, 'pw'), checkPattern(dateReq, 'birth'),checkPattern(telReq,'tel'), async (req, res, next) => {
+router.post("/signup", checkPattern(nameReq, 'name'), checkPattern(idReq, 'id'), checkPattern(pwReq, 'pw'), checkPattern(dateReq, 'birth'), checkPattern(telReq, 'tel'), async (req, res, next) => {
     const { id, pw, name, tel, birth } = req.body;
     const result = {
         success: false,
@@ -122,30 +122,30 @@ router.post("/signup", checkPattern(nameReq,'name'), checkPattern(idReq,'id'), c
         const values = [name, id, pw, tel, birth];
 
         const insertResult = await executeSQL(conn, insertQuery, values);
-        const rowCount=insertResult.rowCount;
+        const rowCount = insertResult.rowCount;
 
         if (rowCount == 0) {
             return next({
-                message : "회원 가입 오류",
-                status : 500
+                message: "회원 가입 오류",
+                status: 500
             });
-        }  
+        }
 
         result.success = true;
         result.data = rowCount;
         result.message = "회원 가입 성공"
-        
+
 
         res.send(result);
 
     }
-    catch(e){
+    catch (e) {
         next();
     }
 });
 
 // id 찾기 API -> 이름, 전화번호
-router.get("/find/id", checkPattern(nameReq,'name'), checkPattern( telReq,'tel'), async (req, res, next) => {
+router.get("/find/id", checkPattern(nameReq, 'name'), checkPattern(telReq, 'tel'), async (req, res, next) => {
     const { name, tel } = req.body;
     const result = {
         success: false,
@@ -162,9 +162,9 @@ router.get("/find/id", checkPattern(nameReq,'name'), checkPattern( telReq,'tel')
 
         if (dbResult.length == 0) {
             return next({
-                message : "일치하는 정보 없음",
-                status : 404
-            });  
+                message: "일치하는 정보 없음",
+                status: 404
+            });
         }
 
         const foundId = dbResult[0].id;
@@ -181,15 +181,15 @@ router.get("/find/id", checkPattern(nameReq,'name'), checkPattern( telReq,'tel')
 });
 
 // pw 확인 부분
-router.get("/find/pw", checkPattern(nameReq,'name'), checkPattern( telReq,'tel'), checkPattern(idReq,'id'), async (req,res,next) => {
-    const { name, tel, id} = req.body
+router.get("/find/pw", checkPattern(nameReq, 'name'), checkPattern(telReq, 'tel'), checkPattern(idReq, 'id'), async (req, res, next) => {
+    const { name, tel, id } = req.body
     const result = {
-        "success" : false, 
-        "message" : "",
-        "data" : null 
+        "success": false,
+        "message": "",
+        "data": null
     }
 
-    try{
+    try {
 
         const sql = `SELECT pw FROM account WHERE name = $1 AND tel = $2 AND id = $3`;
         const values = [name, tel, id];
@@ -198,9 +198,9 @@ router.get("/find/pw", checkPattern(nameReq,'name'), checkPattern( telReq,'tel')
 
         if (dbResult.length === 0) {
             return next({
-                message : "일치하는 정보 없음",
-                status : 404
-            });                
+                message: "일치하는 정보 없음",
+                status: 404
+            });
         }
 
         result.success = true;
@@ -215,21 +215,21 @@ router.get("/find/pw", checkPattern(nameReq,'name'), checkPattern( telReq,'tel')
 });
 
 // pw 변경 부분
-router.put("/pw", checkPattern(pwReq,'pw'), checkPattern(pwReq,'newPw'), checkPattern(pwReq,'newPwCheck'), async (req,res,next) => {
-    const { userIdx, pw, newPw, newPwCheck } = req.body; 
+router.put("/pw", checkPattern(pwReq, 'pw'), checkPattern(pwReq, 'newPw'), checkPattern(pwReq, 'newPwCheck'), async (req, res, next) => {
+    const { userIdx, pw, newPw, newPwCheck } = req.body;
     const result = {
-        "success" : false, 
-        "message" : "",
-        "data" : null 
+        "success": false,
+        "message": "",
+        "data": null
     }
 
-    try{
-        
-        if(newPw!=newPwCheck){
+    try {
+
+        if (newPw != newPwCheck) {
             return next({
-                message : "비밀번호 일치하지 않음",
-                status : 401
-            });  
+                message: "비밀번호 일치하지 않음",
+                status: 401
+            });
         }
 
         const sql = `UPDATE account SET pw = $1 WHERE idx = $2`;
@@ -238,7 +238,7 @@ router.put("/pw", checkPattern(pwReq,'pw'), checkPattern(pwReq,'newPw'), checkPa
         const dbResult = await executeSQL(conn, sql, values);
         const rowCount = dbResult.rowCount;
 
-        if (rowCount === 0) { 
+        if (rowCount === 0) {
             throw new Error("비밀번호 변경 실패");
         }
 
