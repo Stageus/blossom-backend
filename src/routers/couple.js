@@ -241,8 +241,8 @@ router.post('/inform/:idx', checkPattern(nicknameReq, 'nickname'), checkPattern(
 
 // 커플 연애날짜 수정 api
 router.put('/date', isLogin, checkPattern(dateReq, 'date'), async (req, res, next) => {
-    const coupleIdx = req.user.coupleIdx; // 토큰에 coupleIdx 추가하기
-    const userIdx = req.user.idx
+    const coupleIdx = req.user.coupleIdx;
+    const userIdx = req.user.idx;
     const { date } = req.body;    
     const result = {
         success: false,
@@ -394,8 +394,8 @@ router.put('/nickname', isLogin, checkPattern(nicknameReq, 'nickname'), async (r
         // 트랜잭션 시작
         await conn.query('BEGIN');
 
-        const query = `SELECT couple1_idx, couple2_idx FROM couple WHERE idx = $1 AND account_idx = $2;`;
-        const values = [coupleIdx, userIdx];
+        const query = `SELECT couple1_idx, couple2_idx FROM couple WHERE idx = $1;`;
+        const values = [coupleIdx];
 
         const dbResult = await executeSQL(conn, query, values);
 
