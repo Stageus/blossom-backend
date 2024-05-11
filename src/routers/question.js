@@ -1,15 +1,16 @@
 const router = require("express").Router();
 const isLogin = require('../middleware/isLogin');
 const conn = require("../config/postgresql");
-const contentReq = require("../config/patterns");
 const checkPattern = require("../middleware/checkPattern");
+const { contentReq } = require("../config/patterns");
+const { executeSQL } = require("../modules/sql");
 const {loggingMiddleware} = require("../config/mongodb")
 router.use(loggingMiddleware);
 
 // 문답 전체 목록 불러오기 API
 router.get("/all", isLogin, async (req, res, next) => {
     const coupleIdx = req.user.coupleIdx;
-    const lastQuestionIdx = req.query.lastQuestionIdx || 0; // 마지막으로 로드된 질문의 인덱스
+    const lastQuestionIdx = req.query.lastQuestionIdx || 20; // 마지막으로 로드된 질문의 인덱스
     const itemSize = 20; // 페이지당 항목 수
     const result = {
         success: false,
@@ -20,27 +21,29 @@ router.get("/all", isLogin, async (req, res, next) => {
     };
 
     try {
-        const query = ` SELECT q.*
+        const query = ` SELECT q.question
                         FROM question q
-                        JOIN couple c ON q.couple_idx = c.idx
-                        WHERE c.idx = $1
-                        AND q.create_at >= (SELECT create_at FROM couple WHERE idx = $1)
+                        JOIN couple c ON c.idx = $1
+                        WHERE q.create_at >= (SELECT create_at FROM couple WHERE idx = $1)
                         AND q.idx < $2
                         ORDER BY q.create_at DESC
-                        LIMIT $3;`;
+                        LIMIT $3;
+        `;
         const values = [coupleIdx, lastQuestionIdx, itemSize];
 
 
-        const { rows } = await executeSQL(conn, query, values);
+        const dbResult = await executeSQL(conn, query, values);
 
-        if (rows.length == 0) {
+        console.log(dbResult);
+
+        if (dbResult.length == 0) {
             return next({
                 message : "일치하는 정보 없음",
                 status : 404
             });  
         }
         
-        result.data.questions = rows.question;
+        result.data.questions = dbResult;
 
         result.success = true;
         result.message = "질문 목록 불러오기 성공";    
@@ -68,33 +71,42 @@ router.get("/:idx", isLogin, async (req, res, next) => {
     };
     try {
 
-        let partnerIdx;
+        const selectPartnerQuery = `SELECT couple1_idx, couple2_idx FROM couple WHERE idx=$1`;
+        const values = [coupleIdx];
+        console.log("values: ", values)
 
-        const query =`  SELECT COALESCE(NULLIF(couple1_idx, $1), couple2_idx) AS partner_idx
-                        FROM couple WHERE couple1_idx = $1 OR couple2_idx = $1 RETURNING partner_idx`;
-        const values = [userIdx];
+        const dbResult = await executeSQL(conn, selectPartnerQuery, values);
 
-        const { rows } =  await executeSQL(conn, query, values);
-
-        if (rows.length == 0) {
+        if (dbResult == 0) {
             return next({
-                message: '상대방 idx 불러오기 실패',
+                message: "커플 상대방 조회 오류",
                 status: 404
-            });
+            })
+        }
+        
+        const couple1_idx = dbResult[0].couple1_idx;
+        const couple2_idx = dbResult[0].couple2_idx;
+
+        let couplePartnerIdx;
+
+        if(couple1_idx!=userIdx){
+            couplePartnerIdx=couple1_idx;
         } 
+        else{
+            couplePartnerIdx=couple2_idx;
+        }
 
-        partnerIdx = rows[0].partner_idx;
-
-        const selectQuery =`SELECT * FROM answer
+        const selectQuery =`SELECT content FROM answer
                             WHERE account_idx = $1
                             AND question_idx = $2;`;
-        const selectValues = [coupleIdx, questionIdx];
+        const selectValues = [couplePartnerIdx, questionIdx];
 
         const findResult =  await executeSQL(conn, selectQuery, selectValues);
+        console.log("findResult: ",findResult)
 
-        const findRows = findResult.rows[0]
+        //const findRows = findResult.rows[0]
 
-        if (findRows.length == 0) {
+        if (findResult == 0) {
             return next({
                 message: '상대 답변 불러오기 실패',
                 status: 500
@@ -107,18 +119,20 @@ router.get("/:idx", isLogin, async (req, res, next) => {
         const mySelectValues = [userIdx, questionIdx];
 
         const myResult = await executeSQL(conn, mySelectQuery, mySelectValues);
+        console.log("myResult: ",myResult)
 
-        const myRows = myResult.rows[0]
 
-        if (myRows.length == 0) {
+        //const myRows = myResult.rows[0]
+
+        if (myResult == 0) {
             return next({
                 message: '내 답변 불러오기 실패',
                 status: 500
             });
         } 
 
-        const sqlMyAnswer = findRows[0].content;
-        const sqlPartnerAnswer = myRows[0].content;
+        const sqlMyAnswer = findResult.content;
+        const sqlPartnerAnswer = myResult.content;
 
         result.data.myAnswer = sqlMyAnswer;
         result.data.partnerAnswer = sqlPartnerAnswer;
@@ -135,10 +149,10 @@ router.get("/:idx", isLogin, async (req, res, next) => {
 });
 
 // 문답 답변 쓰기 API
-router.post("/:idx", isLogin, checkPattern(contentReq, "content"), async (req, res, next) => {
+router.post("/:idx", checkPattern(contentReq, "content"), isLogin, async (req, res, next) => {
     const userIdx = req.user.idx;
     const coupleIdx = req.user.coupleIdx;
-    const questionIdx = req.params.questionIdx;
+    const questionIdx = req.params.idx;
     const { content } = req.body;
     const result = {
         success: false,
@@ -149,7 +163,8 @@ router.post("/:idx", isLogin, checkPattern(contentReq, "content"), async (req, r
         const answerInsertQuery =`INSERT INTO answer (content, account_idx, couple_idx, question_idx) VALUES ($1, $2, $3, $4)`;
         const values = [content, userIdx, coupleIdx, questionIdx];
 
-        const { rowCount } = await executeSQL(conn, answerInsertQuery, values);
+        const dbResult = await executeSQL(conn, answerInsertQuery, values);
+        const rowCount = dbResult.rowCount;
 
         if(rowCount==0){
             return next({
