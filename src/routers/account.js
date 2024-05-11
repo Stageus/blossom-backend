@@ -35,11 +35,18 @@ router.post('/login', checkPattern(idReq, 'id'), checkPattern(pwReq, 'pw'), asyn
         result.message = '로그인 성공';
 
         const coupleSql = `SELECT idx FROM couple WHERE couple1_idx = $1 OR couple2_idx = $1;`;
-        const coupleValues = [dbResult.idx];
+        const coupleValues = [dbResult[0].idx];
+
+        console.log("coupleValues: ", coupleValues)
+
+        if (coupleValues==0||null){
+            result.message = "일치하는 사용자 정보 없음";
+            return res.status(401).send(result);
+        }
 
         const queryResult = await executeSQL(conn, coupleSql, coupleValues);
-        console.log(queryResult);
-        let coupleIdx = 0;
+        console.log("커플 조회 결과: ", queryResult);
+
         if (queryResult.length > 0) {
             coupleIdx = queryResult[0].idx;
         } else {
