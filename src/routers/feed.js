@@ -9,14 +9,12 @@ const { executeSQL } = require("../modules/sql");
 
 const conn = require("../config/postgresql");
 
-// const {loggingMiddleware} = require("../config/mongodb")
-// router.use(loggingMiddleware);
-// 공통 TODO : islogin 추가 -> coupleIdx : req.user에서 받게
+const { loggingMiddleware } = require("../config/mongodb")
+router.use(loggingMiddleware);
 
 // 1. get feed/all 피드 전체 불러오기
-router.get("/all", async (req, res, next) => {
-    // const { coupleIdx } = req.user;
-    const { coupleIdx } = req.body;
+router.get("/all", isLogin, async (req, res, next) => {
+    const { coupleIdx } = req.user;
 
     const result = {
         success: false,
@@ -43,9 +41,8 @@ router.get("/all", async (req, res, next) => {
 })
 
 // 2. get feed/search 날짜로 검색한 피드 불러오기
-router.get("/search", checkPattern(dateReq, "date"), async (req, res, next) => {
-    // const { coupleIdx } = req.user;
-    const { coupleIdx } = req.body;
+router.get("/search", isLogin, checkPattern(dateReq, "date"), async (req, res, next) => {
+    const { coupleIdx } = req.user;
     const { date } = req.body; // YYYY-MM-DD (postgresql table의 date는 timestamp지만 비교가능)
 
     const result = {
@@ -76,10 +73,8 @@ router.get("/search", checkPattern(dateReq, "date"), async (req, res, next) => {
 })
 
 // 3. post feed 피드 작성하기
-// TODO : uploagImage 수정
 router.post("/", isLogin, uploadImage("image"), checkPattern(feedReq, "content"), checkPattern(dateReq, "date"), async (req, res, next) => {
-    const { coupleIdx, accountIdx } = req.user; // isLogin에서 token해석해서 전달
-    // const { coupleIdx, accountIdx } = req.body;
+    const { coupleIdx, idx } = req.user;
     const { content, date } = req.body;
     const image = req.file;
 
@@ -91,7 +86,7 @@ router.post("/", isLogin, uploadImage("image"), checkPattern(feedReq, "content")
     try {
         const sql = `INSERT INTO feed (couple_idx, account_idx, content, date, image_url)
                      VALUES ($1, $2, $3, $4, $5)`;
-        const values = [coupleIdx, accountIdx, content, date, image];
+        const values = [coupleIdx, idx, content, date, image];
 
         await executeSQL(conn, sql, values);
 
@@ -106,12 +101,10 @@ router.post("/", isLogin, uploadImage("image"), checkPattern(feedReq, "content")
 })
 
 // 4. put feed/:idx 특정 피드 수정하기
-// TODO : 뜯어고치기..
-// FileFlag => 기존 이미지 일경우 0(txt) / 기존 이미지 일 경우 1(image) ==> 미들웨어로 uploadImage 하면 기존 이미지어도 일단 올라감 -> 어캄?
 router.put("/:idx", isLogin, uploadImage("image"), checkPattern(feedReq, "content"), async (req, res, next) => {
-    const { coupleIdx } = req.user; //--> isLogin에서 토큰 확인후 couple_idx와 account_idx 줘야함
-    const { content, fileFlag } = req.body;
-    let image = req.file;
+    const { coupleIdx } = req.user;
+    const { content } = req.body;
+    const image = req.file;
     const feedIdx = req.params.idx;
 
     const result = {
@@ -120,7 +113,6 @@ router.put("/:idx", isLogin, uploadImage("image"), checkPattern(feedReq, "conten
     };
 
     try {
-        // Image 없을 경우 undefined로 오나 Null로 오나? -> null로 오면 그냥 image_url에 넣어도 되는디
         const sql = `UPDATE feed SET content = $1 AND image_url = $2 WHERE idx = $3 AND couple_idx = $4`
         const values = [content, feedIdx, coupleIdx]
 
@@ -137,9 +129,8 @@ router.put("/:idx", isLogin, uploadImage("image"), checkPattern(feedReq, "conten
 })
 
 // 5. delete feed/:idx 특정 피드 삭제하기
-router.delete("/:idx", async (req, res, next) => {
-    // const { coupleIdx } = req.user;
-    const { coupleIdx } = req.body;
+router.delete("/:idx", isLogin, async (req, res, next) => {
+    const { coupleIdx } = req.user;
     const feedIdx = req.params.idx;
 
     const result = {
