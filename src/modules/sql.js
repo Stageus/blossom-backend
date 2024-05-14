@@ -6,7 +6,7 @@ async function executeSQL(conn, sql, values) {
         return result.rows;
     } catch (error) {
         console.log(error.message);
-        throw new Error("SQL 통신 에러: " + error.message);
+        throw error;
     }
 }
 
