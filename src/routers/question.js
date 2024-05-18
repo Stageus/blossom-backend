@@ -58,7 +58,7 @@ router.get("/all", isLogin, async (req, res, next) => {
 
 // 특정 문답 불러오기 API
 router.get("/:idx", isLogin, async (req, res, next) => {
-    const questionIdx = req.params.questionIdx;
+    const questionIdx = req.params.idx;
     const userIdx = req.user.idx;
     const coupleIdx = req.user.coupleIdx;
     const result = {
@@ -113,7 +113,7 @@ router.get("/:idx", isLogin, async (req, res, next) => {
             });
         } 
         
-        const mySelectQuery =`SELECT * FROM answer
+        const mySelectQuery =`SELECT content FROM answer
                             WHERE account_idx = $1
                             AND question_idx = $2;`;
         const mySelectValues = [userIdx, questionIdx];
@@ -131,11 +131,8 @@ router.get("/:idx", isLogin, async (req, res, next) => {
             });
         } 
 
-        const sqlMyAnswer = findResult.content;
-        const sqlPartnerAnswer = myResult.content;
-
-        result.data.myAnswer = sqlMyAnswer;
-        result.data.partnerAnswer = sqlPartnerAnswer;
+        result.data.myAnswer = findResult;
+        result.data.partnerAnswer = myResult;
 
         result.success = true;
         
