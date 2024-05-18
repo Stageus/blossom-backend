@@ -26,9 +26,10 @@ router.get('/find/partner', isLogin, async (req, res, next) => {
         const idValues=[couplePartnerId]
 
         const idResult = await executeSQL(conn,idSql,idValues);
-        console.log(idResult)
+        console.log("idResult: ",idResult)
 
-        const couplePartnerIdx = idResult.idx;
+        const couplePartnerIdx = idResult[0].idx;
+        console.log("couplePartnerIdx: ", couplePartnerIdx)
 
         const sql =`SELECT idx FROM account 
                     WHERE idx NOT IN (
@@ -37,7 +38,7 @@ router.get('/find/partner', isLogin, async (req, res, next) => {
                     UNION ALL
                     SELECT couple2_idx FROM couple 
                     WHERE couple2_idx = $1
-                    );
+                    )
         `;
         const values = [couplePartnerIdx];
 
@@ -45,16 +46,34 @@ router.get('/find/partner', isLogin, async (req, res, next) => {
     
         if (dbResult.length == 0) {
             return next({
-                message : "일치하는 상대 정보 없음",
+                message : "솔로 검색 정보 없음",
                 status : 404
             });  
         }
+        console.log("dbResult: ",dbResult)
+
+        let found = false;
+
+        for(let i = 0; i<dbResult.length;i++){
+            if (dbResult[i].idx==couplePartnerIdx){
+                found=true;
+                break;
+            }
+        }
+        if(found){
+            result.success = true;
+            result.message = `상대 찾기 성공.`;
+            result.data = { couplePartnerIdx };
         
-        result.success = true;
-        result.message = `상대 찾기 성공.`;
-        result.data = { couplePartnerIdx };
-    
-        res.send(result);
+            res.send(result);
+        } else{
+            return next({
+                message : "상대 검색 정보 없음",
+                status : 404
+            });
+        }
+        
+        
 
     } catch (error) {
         result.error = error;
