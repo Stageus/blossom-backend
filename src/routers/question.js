@@ -7,6 +7,8 @@ const { executeSQL } = require("../modules/sql");
 const {loggingMiddleware} = require("../config/mongodb")
 router.use(loggingMiddleware);
 
+// 수정해봄 
+
 // 문답 전체 목록 불러오기 API
 router.get("/all", isLogin, async (req, res, next) => {
     const coupleIdx = req.user.coupleIdx;
