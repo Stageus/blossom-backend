@@ -8,6 +8,8 @@ const {loggingMiddleware} = require("../config/mongodb")
 router.use(loggingMiddleware);
 
 // 문답 전체 목록 불러오기 API
+// 문답 불러올 떄 idx, question 내용 분리하기
+
 router.get("/all", isLogin, async (req, res, next) => {
     const coupleIdx = req.user.coupleIdx;
     const lastQuestionIdx = req.query.lastQuestionIdx || 20; // 마지막으로 로드된 질문의 인덱스
@@ -21,7 +23,7 @@ router.get("/all", isLogin, async (req, res, next) => {
     };
 
     try {
-        const query = ` SELECT q.question
+        const query = ` SELECT q.idx,q.question
                         FROM question q
                         JOIN couple c ON c.idx = $1
                         WHERE q.create_at >= (SELECT create_at FROM couple WHERE idx = $1)
@@ -57,6 +59,9 @@ router.get("/all", isLogin, async (req, res, next) => {
 });
 
 // 특정 문답 불러오기 API
+
+//나 그리고 상대방의 닉네임, question 추가하기
+
 router.get("/:idx", isLogin, async (req, res, next) => {
     const questionIdx = req.params.idx;
     const userIdx = req.user.idx;
@@ -65,13 +70,15 @@ router.get("/:idx", isLogin, async (req, res, next) => {
         success: false,
         message: "",
         data: {
+            myNickname:null,
+            nickname:null,
             myAnswer: null,
             partnerAnswer:null
         },
     };
     try {
 
-        const selectPartnerQuery = `SELECT couple1_idx, couple2_idx FROM couple WHERE idx=$1`;
+        const selectPartnerQuery = `SELECT couple1_idx, couple2_idx FROM couple WHERE idx = $1`;
         const values = [coupleIdx];
         console.log("values: ", values)
 
@@ -96,13 +103,50 @@ router.get("/:idx", isLogin, async (req, res, next) => {
             couplePartnerIdx=couple2_idx;
         }
 
+        //닉네임 불러오기
+        const myNicknameQuery = `SELECT nickname FROM account WHERER idx = $1;`;
+        const myNicknameValue = [userIdx];
+        const myNicknameResult =  await executeSQL(conn, myNicknameQuery, myNicknameValue);
+
+        if (mynicknameResult == 0) {
+            return next({
+                message: '커플 닉네임 설정 되어 있지 않음',
+                status: 500
+            });
+        } 
+
+        const nicknameQuery = `SELECT nickname FROM account WHERER idx = $1;`;
+        const nicknameValue = [couplePartnerIdx];
+        const nicknameResult =  await executeSQL(conn, nicknameQuery, nicknameValue);
+        
+        if (nicknameResult == 0) {
+            return next({
+                message: '커플 닉네임 설정 되어 있지 않음',
+                status: 500
+            });
+        } 
+
+        const questionQuery =`SELECT question FROM question
+                            WHERE idx = $1;`;
+        const questionValues = [questionIdx];
+        
+        const questionResult = await executeSQL(conn, questionQuery, questionValues);
+        console.log("questionResult: ", questionResult);
+        
+        if (questionResult == 0) {
+            return next({
+                message: '질문 내용 불러오기 실패',
+                status: 500
+            });
+        } 
+
         const selectQuery =`SELECT content FROM answer
                             WHERE account_idx = $1
                             AND question_idx = $2;`;
         const selectValues = [couplePartnerIdx, questionIdx];
 
         const findResult =  await executeSQL(conn, selectQuery, selectValues);
-        console.log("findResult: ",findResult)
+        console.log("findResult: ",findResult);
 
         //const findRows = findResult.rows[0]
 
@@ -133,6 +177,8 @@ router.get("/:idx", isLogin, async (req, res, next) => {
 
         result.data.myAnswer = findResult;
         result.data.partnerAnswer = myResult;
+        result.data.myNickname = myNicknameResult;
+        result.data.nickname = nicknameResult;
 
         result.success = true;
         
