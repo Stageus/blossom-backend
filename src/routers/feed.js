@@ -15,6 +15,7 @@ router.use(loggingMiddleware);
 // 1. get feed/all 피드 전체 불러오기
 router.get("/all", isLogin, async (req, res, next) => {
     const { coupleIdx } = req.user;
+    const { lastIdx } = req.body;
 
     const result = {
         success: false,
@@ -24,8 +25,14 @@ router.get("/all", isLogin, async (req, res, next) => {
 
     try {
         // 피드 전체 최신순으로 가져오기
-        const sql = "SELECT * FROM feed WHERE is_delete = false AND couple_idx = $1 ORDER BY create_at DESC";
-        const values = [coupleIdx];
+        const sql = `SELECT * FROM feed 
+                    WHERE is_delete = false 
+                    AND couple_idx = $1 
+                    AND idx > $2 
+                    ORDER BY create_at DESC 
+                    LIMIT 10`;
+
+        const values = [coupleIdx, lastIdx];
 
         const dbResult = await executeSQL(conn, sql, values);
 
@@ -43,7 +50,7 @@ router.get("/all", isLogin, async (req, res, next) => {
 // 2. get feed/search 날짜로 검색한 피드 불러오기
 router.get("/search", isLogin, checkPattern(dateReq, "date"), async (req, res, next) => {
     const { coupleIdx } = req.user;
-    const { date } = req.body; // YYYY-MM-DD (postgresql table의 date는 timestamp지만 비교가능)
+    const { date } = req.body; // YYYYMMDD 형식 (postgresql table의 date는 timestamp지만 비교가능)
 
     const result = {
         success: false,
