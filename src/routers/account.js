@@ -215,8 +215,8 @@ router.get("/find/pw", checkPattern(nameReq, 'name'), checkPattern(telReq, 'tel'
 });
 
 // pw 변경 부분
-router.put("/pw", checkPattern(pwReq, 'pw'), checkPattern(pwReq, 'newPw'), checkPattern(pwReq, 'newPwCheck'), async (req, res, next) => {
-    const { userIdx, pw, newPw, newPwCheck } = req.body;
+router.put("/pw", checkPattern(pwReq, 'newPw'), checkPattern(pwReq, 'newPwCheck'), async (req, res, next) => {
+    const { userIdx, newPw, newPwCheck } = req.body;
     const result = {
         "success": false,
         "message": "",
